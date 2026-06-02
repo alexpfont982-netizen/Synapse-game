@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #040615;
+  --text-primary: #f8fbff;
+  --text-muted: #93a4cf;
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-display: 'Orbitron', sans-serif;
+
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg-base);
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(124, 58, 237, 0.28), transparent 24%),
+    radial-gradient(circle at 84% 10%, rgba(34, 211, 238, 0.18), transparent 22%),
+    radial-gradient(circle at 52% 100%, rgba(37, 99, 235, 0.16), transparent 34%),
+    linear-gradient(180deg, #050815 0%, #05070f 100%);
+  color: var(--text-primary);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.06) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 86%);
+  opacity: 0.24;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 48%, rgba(0, 0, 0, 0.36) 100%);
+  pointer-events: none;
+}
+
+#root {
+  min-height: 100svh;
+  position: relative;
+  isolation: isolate;
+}
+
+button {
+  font: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.surface-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: linear-gradient(180deg, rgba(11, 16, 32, 0.96) 0%, rgba(6, 10, 24, 0.93) 100%);
+  box-shadow:
+    0 26px 72px rgba(2, 6, 23, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(99, 102, 241, 0.04);
+  backdrop-filter: blur(20px);
+}
+
+.surface-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08),
+    transparent 35%,
+    transparent 65%,
+    rgba(34, 211, 238, 0.1)
+  );
+  opacity: 0.52;
+  pointer-events: none;
+}
+
+.surface-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.status-grid {
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.06) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
