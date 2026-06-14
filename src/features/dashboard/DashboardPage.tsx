@@ -21,6 +21,7 @@ import GamesPage from '../../pages/GamesPage'
 import LabDuelArena from '../lab-duel/LabDuelArena'
 import NeuralLink from '../neural-link/NeuralLink'
 import PacketStorm from '../packet-storm/PacketStorm'
+import NetRush from '../net-rush/NetRush'
 import {
 
   selectMockHardwarePieces,
@@ -62,6 +63,7 @@ function resolveSectionFromPath(pathname: string) {
   if (normalizedPath === '/games/lab-duel') return 'lab-duel'
   if (normalizedPath === '/games/neural-link') return 'neural-link'
   if (normalizedPath === '/games/packet-storm') return 'packet-storm'
+  if (normalizedPath === '/games/net-rush') return 'net-rush'
   if (navItemsByPath.has(normalizedPath)) {
     return navItemsByPath.get(normalizedPath)?.id ?? 'dashboard'
   }
@@ -71,7 +73,8 @@ function resolveSectionFromPath(pathname: string) {
 function getCanonicalPath(sectionId: string) {
   if (sectionId === 'lab-duel') return '/games/lab-duel'
   if (sectionId === 'neural-link') return '/games/neural-link'
- if (sectionId === 'packet-storm') return '/games/packet-storm'
+  if (sectionId === 'packet-storm') return '/games/packet-storm'
+  if (sectionId === 'net-rush') return '/games/net-rush'
   return navItems.find((item) => item.id === sectionId)?.path ?? '/dashboard'
 }
 
@@ -214,7 +217,7 @@ export default function DashboardPage({
 
   const { balance, inventory } = useMockPlayerState()
   const userEmail = session.email ?? 'Unknown user'
-  const isLaboratorySection = activeSection === 'laboratory' || activeSection === 'lab-duel' || activeSection === 'neural-link' || activeSection === 'packet-storm'
+  const isLaboratorySection = activeSection === 'laboratory' || activeSection === 'lab-duel' || activeSection === 'neural-link' || activeSection === 'packet-storm' || activeSection === 'net-rush'
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -224,7 +227,7 @@ export default function DashboardPage({
       )
       const canonicalPath = getCanonicalPath(nextSection)
       const normalizedPath = normalizePathname(window.location.pathname)
-      if (canonicalPath !== normalizedPath && nextSection !== 'games' && nextSection !== 'lab-duel' && nextSection !== 'neural-link' && nextSection !== 'packet-storm') {
+      if (canonicalPath !== normalizedPath && nextSection !== 'games' && nextSection !== 'lab-duel' && nextSection !== 'neural-link' && nextSection !== 'packet-storm' && nextSection !== 'net-rush') {
         window.history.replaceState({}, '', canonicalPath)
       }
     }
@@ -428,6 +431,10 @@ export default function DashboardPage({
             window.history.pushState({}, '', '/games')
           }} />}
           {activeSection === 'packet-storm' && <PacketStorm onExit={() => {
+            startTransition(() => setActiveSection('games'))
+            window.history.pushState({}, '', '/games')
+          }} />}
+          {activeSection === 'net-rush' && <NetRush onExit={() => {
             startTransition(() => setActiveSection('games'))
             window.history.pushState({}, '', '/games')
           }} />}

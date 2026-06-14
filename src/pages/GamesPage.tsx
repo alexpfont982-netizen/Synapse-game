@@ -58,6 +58,14 @@ const gameCards: GameCard[] = [
     path: '/games/packet-storm',
     cta: 'Launch drone',
   },
+  {
+  title: 'Net Rush',
+  description: 'Race your data packet through the network circuit. Dodge firewalls and latency spikes, collect bandwidth boosts, finish ahead of rival processes.',
+  status: 'Playable prototype',
+  icon: Zap,
+  path: '/games/net-rush',
+  cta: 'Start race',
+},
 ]
 
 export default function GamesPage({ onNavigate }: GamesPageProps) {
