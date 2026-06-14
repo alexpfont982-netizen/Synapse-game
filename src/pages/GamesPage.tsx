@@ -1,5 +1,4 @@
-import { ArrowUpRight, Cpu, Gamepad2, Thermometer, Workflow, type LucideIcon } from 'lucide-react'
-
+import { ArrowUpRight, Cpu, Gamepad2, Thermometer, Workflow, Zap, type LucideIcon } from 'lucide-react'
 interface GameCard {
   title: string
   description: string
@@ -49,6 +48,15 @@ const gameCards: GameCard[] = [
     status: 'Strategy draft',
     icon: Cpu,
     cta: 'Coming soon',
+  },
+  {
+    title: 'Packet Storm',
+    description:
+      'Defend the network against descending malware formations. Drag your interceptor drone to dodge and destroy packets, worms and hijackers before they break through.',
+    status: 'Playable prototype',
+    icon: Zap,
+    path: '/games/packet-storm',
+    cta: 'Launch drone',
   },
 ]
 

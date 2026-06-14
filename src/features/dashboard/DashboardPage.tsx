@@ -20,7 +20,9 @@ import MarketplacePage from '../marketplace/pages/MarketplacePage';
 import GamesPage from '../../pages/GamesPage'
 import LabDuelArena from '../lab-duel/LabDuelArena'
 import NeuralLink from '../neural-link/NeuralLink'
+import PacketStorm from '../packet-storm/PacketStorm'
 import {
+
   selectMockHardwarePieces,
   useMockPlayerState,
   type MockHardwarePiece,
@@ -59,6 +61,7 @@ function resolveSectionFromPath(pathname: string) {
   const normalizedPath = normalizePathname(pathname)
   if (normalizedPath === '/games/lab-duel') return 'lab-duel'
   if (normalizedPath === '/games/neural-link') return 'neural-link'
+  if (normalizedPath === '/games/packet-storm') return 'packet-storm'
   if (navItemsByPath.has(normalizedPath)) {
     return navItemsByPath.get(normalizedPath)?.id ?? 'dashboard'
   }
@@ -68,6 +71,7 @@ function resolveSectionFromPath(pathname: string) {
 function getCanonicalPath(sectionId: string) {
   if (sectionId === 'lab-duel') return '/games/lab-duel'
   if (sectionId === 'neural-link') return '/games/neural-link'
+ if (sectionId === 'packet-storm') return '/games/packet-storm'
   return navItems.find((item) => item.id === sectionId)?.path ?? '/dashboard'
 }
 
@@ -210,7 +214,7 @@ export default function DashboardPage({
 
   const { balance, inventory } = useMockPlayerState()
   const userEmail = session.email ?? 'Unknown user'
-  const isLaboratorySection = activeSection === 'laboratory' || activeSection === 'lab-duel' || activeSection === 'neural-link'
+  const isLaboratorySection = activeSection === 'laboratory' || activeSection === 'lab-duel' || activeSection === 'neural-link' || activeSection === 'packet-storm'
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -220,7 +224,7 @@ export default function DashboardPage({
       )
       const canonicalPath = getCanonicalPath(nextSection)
       const normalizedPath = normalizePathname(window.location.pathname)
-      if (canonicalPath !== normalizedPath && nextSection !== 'games' && nextSection !== 'lab-duel' && nextSection !== 'neural-link') {
+      if (canonicalPath !== normalizedPath && nextSection !== 'games' && nextSection !== 'lab-duel' && nextSection !== 'neural-link' && nextSection !== 'packet-storm') {
         window.history.replaceState({}, '', canonicalPath)
       }
     }
@@ -420,6 +424,10 @@ export default function DashboardPage({
             />
           )}
           {activeSection === 'neural-link' && <NeuralLink onExit={() => {
+            startTransition(() => setActiveSection('games'))
+            window.history.pushState({}, '', '/games')
+          }} />}
+          {activeSection === 'packet-storm' && <PacketStorm onExit={() => {
             startTransition(() => setActiveSection('games'))
             window.history.pushState({}, '', '/games')
           }} />}
