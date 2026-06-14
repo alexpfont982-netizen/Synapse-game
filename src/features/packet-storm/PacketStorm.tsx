@@ -1,4 +1,10 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react'
+import shipImg       from '../../assets/sprites/playerShip2_blue.png'
+import enemyBlackImg from '../../assets/sprites/enemyBlack1.png'
+import enemyRedImg   from '../../assets/sprites/enemyRed2.png'
+import enemyGreenImg from '../../assets/sprites/enemyGreen1.png'
+import enemyBlueImg  from '../../assets/sprites/enemyBlue4.png'
+import laserImg      from '../../assets/sprites/laserBlue01.png'
 
 /* ============================================================
    SYNAPSE · PACKET STORM
@@ -121,169 +127,95 @@ function pickType(level: LevelDef): EnemyType {
   return 'drone'
 }
 
-/* ---- Visual: enemy shapes ---- */
-function PacketShape({ color }: { color: string }) {
-  return (
-    <div style={{ position:'relative', width:'100%', height:'100%' }}>
-      <svg viewBox="0 0 24 24" width="100%" height="100%" style={{ position:'absolute', inset:0 }}>
-        <path d="M12,2 L22,12 L12,22 L2,12 Z" fill="#160C12" stroke={color} strokeWidth="1.5" />
-        <path d="M12,5 L18,12 L12,19 L6,12 Z" fill={color} opacity="0.18" />
-        <circle cx="12" cy="12" r="2.6" fill={color}>
-          <animate attributeName="opacity" values="1;0.4;1" dur="0.7s" repeatCount="indefinite" />
-        </circle>
-      </svg>
-      <div style={{
-        position:'absolute', left:'15%', top:'40%', width:'70%', height:'20%',
-        background:'#00FFE0', opacity:0.25, mixBlendMode:'screen',
-        animation:'psGlitch 0.6s steps(3) infinite',
-      }} />
-    </div>
-  )
+/* ---- Visual: enemy sprites (Kenney Space Shooter Remastered) ---- */
+const SPRITE_MAP: Record<EnemyType, string> = {
+  drone:    enemyBlackImg,
+  worm:     enemyRedImg,
+  hijacker: enemyGreenImg,
+  boss:     enemyBlueImg,
 }
-
-function WormShape({ color, hp }: { color: string; hp: number }) {
-  return (
-    <svg viewBox="0 0 30 18" width="100%" height="100%">
-      <ellipse cx="6"    cy="9" rx="4.3" ry="4.3" fill="#2A150C" stroke={color} strokeWidth="1" />
-      <ellipse cx="14.5" cy="9" rx="5"   ry="5"   fill="#2A150C" stroke={color} strokeWidth="1" />
-      <ellipse cx="23"   cy="9" rx="5.6" ry="5.8" fill={hp>1?'#3A1E10':'#160B06'} stroke={color} strokeWidth="1.3" />
-      <ellipse cx="22" cy="6.5" rx="1.5" ry="1.7" fill="#FFFFFF" opacity="0.18" />
-      <circle cx="25" cy="7.2"  r="0.9" fill={color} />
-      <circle cx="25" cy="10.8" r="0.9" fill={color} />
-      <g opacity="0.5" stroke={color} strokeWidth="1">
-        <line x1="6"    y1="13"   x2="3"    y2="16"   />
-        <line x1="6"    y1="13"   x2="9"    y2="16"   />
-        <line x1="14.5" y1="13.5" x2="11.5" y2="16.5" />
-        <line x1="14.5" y1="13.5" x2="17.5" y2="16.5" />
-        <line x1="23"   y1="14.5" x2="20"   y2="17.5" />
-        <line x1="23"   y1="14.5" x2="26"   y2="17.5" />
-      </g>
-    </svg>
-  )
-}
-
-function HijackerShape({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 24 24" width="100%" height="100%">
-      <path d="M3,15 A9,9 0 0 1 21,15 L17,18 A5,5 0 0 0 7,18 Z" fill="#2A2208" stroke={color} strokeWidth="1.3" />
-      <line x1="12" y1="6" x2="12" y2="2" stroke={color} strokeWidth="1.3" />
-      <circle cx="12" cy="2"  r="1.1" fill={color} />
-      <circle cx="12" cy="15" r="1.8" fill={color}>
-        <animate attributeName="opacity" values="1;0.4;1" dur="0.6s" repeatCount="indefinite" />
-      </circle>
-      <circle cx="12" cy="15" r="4" fill="none" stroke={color} strokeWidth="1" opacity="0.6">
-        <animate attributeName="r"       values="4;9;4"     dur="1.2s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0.6;0;0.6" dur="1.2s" repeatCount="indefinite" />
-      </circle>
-    </svg>
-  )
-}
-
-function BossShape({ color, hp }: { color: string; hp: number }) {
-  const nodes: [number, number][] = [[20,12],[12,26],[28,26]]
-  const spikes = Array.from({ length:6 }, (_, i) => {
-    const a = (i / 6) * Math.PI * 2
-    return { x1:20+Math.cos(a)*16, y1:20+Math.sin(a)*16, x2:20+Math.cos(a)*20, y2:20+Math.sin(a)*20 }
-  })
-  return (
-    <svg viewBox="0 0 40 40" width="100%" height="100%">
-      <path d="M20,2 L35,11 L35,29 L20,38 L5,29 L5,11 Z" fill="#1A0A2A" stroke={color} strokeWidth="1.5" />
-      <path d="M20,7 L30,13 L30,27 L20,33 L10,27 L10,13 Z" fill="#100620" opacity="0.7" />
-      {spikes.map((s, i) => (
-        <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={color} strokeWidth="1.5" opacity="0.5" />
-      ))}
-      {nodes.map(([cx, cy], i) => (
-        <circle key={i} cx={cx} cy={cy} r="3"
-          fill={i<hp?color:'#2A1040'} stroke={color} strokeWidth="1" opacity={i<hp?1:0.3}>
-          {i < hp && <animate attributeName="opacity" values="1;0.5;1" dur="0.8s" repeatCount="indefinite" />}
-        </circle>
-      ))}
-    </svg>
-  )
+const SIZE_MAP: Record<EnemyType, number> = {
+  drone: 34, worm: 40, hijacker: 36, boss: 62,
 }
 
 function EnemySprite({ enemy }: { enemy: Enemy }) {
   const meta  = ENEMY_META[enemy.type]
-  const scale = enemy.type === 'boss' ? 1.8 : 1
-  const size  = enemy.type === 'worm' ? 26 : enemy.type === 'boss' ? 36 : 24
   const alpha = enemy.dying ? Math.max(0, 1 - enemy.dieT / 0.3) : 1
+  const size  = SIZE_MAP[enemy.type]
+  const maxHp = meta.hp
+
   return (
     <div style={{
       position:'absolute', left:`${enemy.x}%`, top:`${enemy.y}%`,
-      transform:`translate(-50%,-50%) scale(${scale})`,
-      width:size, height:size, opacity:alpha,
-      filter: enemy.state==='diving' ? `drop-shadow(0 0 6px ${meta.color}99)` : 'none',
-      transition:'opacity 150ms',
+      transform:'translate(-50%,-50%)',
+      display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+      opacity:alpha, transition:'opacity 150ms',
     }}>
-      {enemy.type === 'drone'    && <PacketShape  color={meta.color} />}
-      {enemy.type === 'worm'     && <WormShape    color={meta.color} hp={enemy.hp} />}
-      {enemy.type === 'hijacker' && <HijackerShape color={meta.color} />}
-      {enemy.type === 'boss'     && <BossShape    color={meta.color} hp={enemy.hp} />}
+      <div style={{
+        width:size, height:size,
+        filter: enemy.state==='diving'
+          ? `drop-shadow(0 0 7px ${meta.color}BB)`
+          : `drop-shadow(0 0 2px ${meta.color}44)`,
+      }}>
+        <img
+          src={SPRITE_MAP[enemy.type]}
+          alt={meta.label}
+          draggable={false}
+          style={{ width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated', display:'block' }}
+        />
+      </div>
+      {/* HP dots for multi-hit enemies */}
+      {maxHp > 1 && (
+        <div style={{ display:'flex', gap:3 }}>
+          {Array.from({ length:maxHp }).map((_, i) => (
+            <div key={i} style={{
+              width:5, height:5, borderRadius:'50%',
+              background: i < enemy.hp ? meta.color : '#16202F',
+              boxShadow: i < enemy.hp ? `0 0 4px ${meta.color}` : 'none',
+              transition:'background 150ms',
+            }} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-/* ---- Visual: player ship ---- */
+/* ---- Visual: player ship (Kenney playerShip2_blue) ---- */
 function Ship({ x, hijacked, flash }: { x: number; hijacked: boolean; flash: number }) {
-  const accent = hijacked ? '#FF5C8A' : '#8B7CFF'
-  const glow   = hijacked ? '#FF2200' : '#00FFE0'
+  const glow = hijacked ? '#FF2200' : '#00FFE0'
   return (
-    <div style={{ position:'absolute', left:`${x}%`, top:`${SHIP_Y}%`, transform:'translate(-50%,-50%)', width:44, height:50 }}>
+    <div style={{
+      position:'absolute', left:`${x}%`, top:`${SHIP_Y}%`,
+      transform:'translate(-50%,-50%)',
+      width:52, height:52,
+      display:'flex', flexDirection:'column', alignItems:'center',
+    }}>
+      {/* Damage flash halo */}
       {flash > 0 && (
         <div style={{
-          position:'absolute', inset:-12, borderRadius:'50%',
-          background:`radial-gradient(circle, ${accent}55, transparent 70%)`, opacity:flash,
+          position:'absolute', inset:-14, borderRadius:'50%',
+          background:`radial-gradient(circle, ${glow}55, transparent 70%)`,
+          opacity:flash, pointerEvents:'none',
         }} />
       )}
+      {/* Engine glow */}
       <div style={{
-        position:'absolute', left:'50%', bottom:-2, transform:'translateX(-50%)',
-        width:18, height:6, borderRadius:'50%',
-        background:accent, opacity:0.3, filter:'blur(3px)',
+        position:'absolute', bottom:-4, left:'50%', transform:'translateX(-50%)',
+        width:18, height:8, borderRadius:'50%',
+        background:glow, opacity:0.55, filter:'blur(5px)',
       }} />
-      <svg viewBox="0 0 48 56" width="44" height="50">
-        <defs>
-          <linearGradient id="psHull" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0"   stopColor="#3A4D75" />
-            <stop offset="0.5" stopColor="#1C2740" />
-            <stop offset="1"   stopColor="#0A0F1A" />
-          </linearGradient>
-          <linearGradient id="psWing" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#2A3A5C" />
-            <stop offset="1" stopColor="#10182C" />
-          </linearGradient>
-          <radialGradient id="psCanopy" cx="0.35" cy="0.3" r="0.8">
-            <stop offset="0"    stopColor="#FFFFFF"  stopOpacity="0.9" />
-            <stop offset="0.35" stopColor={glow}     stopOpacity="0.9" />
-            <stop offset="1"    stopColor={glow}     stopOpacity="0.15" />
-          </radialGradient>
-          <radialGradient id="psEngine" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0" stopColor={accent} stopOpacity="1" />
-            <stop offset="1" stopColor={accent} stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <path d="M16,30 L2,46 L17,50 L18,34 Z"  fill="url(#psWing)" stroke="#0A0F1A" strokeWidth="0.5" />
-        <path d="M32,30 L46,46 L31,50 L30,34 Z" fill="url(#psWing)" stroke="#0A0F1A" strokeWidth="0.5" />
-        {([[ 6,45],[42,45]] as [number,number][]).map(([cx,cy], i) => (
-          <g key={i} style={{ transformBox:'fill-box', transformOrigin:'center', animation:'psSpin 0.25s linear infinite' }}>
-            <circle cx={cx} cy={cy} r="3.4" fill="#0A0F1A" stroke="#2D3F58" strokeWidth="1" />
-            <line x1={cx-3} y1={cy} x2={cx+3} y2={cy} stroke={glow} strokeWidth="1.1" opacity="0.6" />
-            <line x1={cx} y1={cy-3} x2={cx} y2={cy+3} stroke={glow} strokeWidth="1.1" opacity="0.6" />
-          </g>
-        ))}
-        <path
-          d="M24,2 C31,9 35,19 33,31 L35,49 C35,54 29,56 24,56 C19,56 13,54 13,49 L15,31 C13,19 17,9 24,2 Z"
-          fill="url(#psHull)" stroke={accent} strokeWidth="1" strokeOpacity="0.5"
-        />
-        <path d="M24,9 L24,40"           stroke="#000" strokeOpacity="0.25" strokeWidth="0.8" fill="none" />
-        <path d="M18,22 C20,24 28,24 30,22" stroke="#000" strokeOpacity="0.2"  strokeWidth="0.8" fill="none" />
-        <ellipse cx="24" cy="14" rx="5.5" ry="8"   fill="url(#psCanopy)" />
-        <ellipse cx="22" cy="10" rx="1.6" ry="2.6" fill="#FFFFFF" opacity="0.5" />
-        <circle cx="24" cy="51" r="6" fill="url(#psEngine)">
-          <animate attributeName="r" values="5;7;5" dur="0.8s" repeatCount="indefinite" />
-        </circle>
-        <ellipse cx="20" cy="53" rx="1.6" ry="3" fill={glow} opacity="0.8" />
-        <ellipse cx="28" cy="53" rx="1.6" ry="3" fill={glow} opacity="0.8" />
-      </svg>
+      <img
+        src={shipImg}
+        alt="interceptor drone"
+        draggable={false}
+        style={{
+          width:52, height:52, objectFit:'contain', imageRendering:'pixelated',
+          filter: hijacked
+            ? 'hue-rotate(200deg) saturate(2) drop-shadow(0 0 6px #FF220099)'
+            : 'drop-shadow(0 0 4px rgba(0,255,224,0.5))',
+        }}
+      />
     </div>
   )
 }
@@ -616,9 +548,13 @@ export default function PacketStorm({ onExit }: PacketStormProps) {
           {rd.bullets.map(b => (
             <div key={b.id} style={{
               position:'absolute', left:`${b.x}%`, top:`${b.y}%`,
-              transform:'translate(-50%,-50%)', width:3, height:9,
-              background:'#00FFE0', borderRadius:2, boxShadow:'0 0 6px rgba(0,255,224,0.8)',
-            }} />
+              transform:'translate(-50%,-50%)',
+              width:10, height:22,
+              filter:'drop-shadow(0 0 5px rgba(0,255,224,0.9))',
+            }}>
+              <img src={laserImg} alt="" draggable={false}
+                style={{ width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated' }} />
+            </div>
           ))}
 
           {/* Ship */}
