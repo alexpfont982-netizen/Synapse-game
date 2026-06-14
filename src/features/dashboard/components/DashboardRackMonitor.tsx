@@ -6,6 +6,7 @@ type ComponentType =
   | 'STORAGE'
   | 'POWER_UNIT'
   | 'CABLE_KIT'
+  | 'COOLING'
   | 'ROOM_FAN'
   | 'ROOM_EXTRACTOR'
   | 'CONSUMABLE';
@@ -29,7 +30,7 @@ interface DashboardRackMonitorProps {
   hardware: DashboardHardwarePiece[];
 }
 
-const RACK_SLOT_CAPACITY = 19;
+const RACK_SLOT_CAPACITY = 20;
 
 function toFixedValue(value: number, digits = 1) {
   return value.toFixed(digits);
@@ -43,23 +44,16 @@ export function DashboardRackMonitor({
     const rackHardware = installedHardware.filter((piece) =>
       piece.slot_id?.startsWith('rack1-'),
     );
-    const roomHardware = installedHardware.filter((piece) =>
-      piece.slot_id?.startsWith('room-'),
-    );
 
     const counts = {
       POWER_UNIT: rackHardware.filter((piece) => piece.type === 'POWER_UNIT')
         .length,
       CABLE_KIT: rackHardware.filter((piece) => piece.type === 'CABLE_KIT')
         .length,
+      COOLING: rackHardware.filter((piece) => piece.type === 'COOLING').length,
       MEMORY: rackHardware.filter((piece) => piece.type === 'MEMORY').length,
       STORAGE: rackHardware.filter((piece) => piece.type === 'STORAGE').length,
       GPU: rackHardware.filter((piece) => piece.type === 'GPU').length,
-      ROOM_FAN: roomHardware.filter((piece) => piece.type === 'ROOM_FAN')
-        .length,
-      ROOM_EXTRACTOR: roomHardware.filter(
-        (piece) => piece.type === 'ROOM_EXTRACTOR',
-      ).length,
     };
 
     const rackInstalledCount = rackHardware.length;
@@ -67,13 +61,11 @@ export function DashboardRackMonitor({
       [
         counts.POWER_UNIT > 0,
         counts.CABLE_KIT > 0,
+        counts.COOLING > 0,
         counts.MEMORY > 0,
         counts.STORAGE > 0,
         counts.GPU > 0,
-      ].filter(Boolean).length / 5;
-    const roomSupportCoverage =
-      [counts.ROOM_FAN > 0, counts.ROOM_EXTRACTOR > 0].filter(Boolean).length /
-      2;
+      ].filter(Boolean).length / 6;
     const rackFill = rackInstalledCount / RACK_SLOT_CAPACITY;
 
     const hasCompatibilityBoost =
@@ -85,9 +77,8 @@ export function DashboardRackMonitor({
     const efficiencyEstimate = Math.min(
       100,
       Math.round(
-        essentialCoverage * 55 +
-          rackFill * 35 +
-          roomSupportCoverage * 10 +
+        essentialCoverage * 65 +
+          rackFill * 30 +
           (hasCompatibilityBoost ? 5 : 0),
       ),
     );
@@ -96,19 +87,19 @@ export function DashboardRackMonitor({
       (sum, piece) => sum + (piece.type === 'GPU' ? piece.stats?.tflops ?? 0 : 0),
       0,
     );
-    const rackPowerDraw = [...rackHardware, ...roomHardware].reduce(
+    const rackPowerDraw = rackHardware.reduce(
       (sum, piece) => sum + (piece.stats?.power ?? 0),
       0,
     );
     const thermalLoad = rackHardware.reduce((sum, piece) => {
-      if (piece.type === 'ROOM_FAN' || piece.type === 'ROOM_EXTRACTOR') {
+      if (piece.type === 'COOLING') {
         return sum;
       }
 
       return sum + Math.max(0, piece.stats?.heat ?? 0);
     }, 22);
-    const coolingSupport = roomHardware.reduce((sum, piece) => {
-      if (piece.type !== 'ROOM_FAN' && piece.type !== 'ROOM_EXTRACTOR') {
+    const coolingSupport = rackHardware.reduce((sum, piece) => {
+      if (piece.type !== 'COOLING') {
         return sum;
       }
 
@@ -128,6 +119,7 @@ export function DashboardRackMonitor({
     const rackStatus =
       counts.POWER_UNIT > 0 &&
       counts.CABLE_KIT > 0 &&
+      counts.COOLING > 0 &&
       counts.MEMORY > 0 &&
       counts.STORAGE > 0 &&
       counts.GPU > 0
@@ -172,15 +164,9 @@ export function DashboardRackMonitor({
           activeClass: 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200',
         },
         {
-          label: 'Cooling Assisted',
-          active: counts.ROOM_FAN > 0,
+          label: 'Cooling Online',
+          active: counts.COOLING > 0,
           activeClass: 'border-blue-400/30 bg-blue-400/10 text-blue-200',
-        },
-        {
-          label: 'Airflow Assisted',
-          active: counts.ROOM_EXTRACTOR > 0,
-          activeClass:
-            'border-orange-400/30 bg-orange-400/10 text-orange-200',
         },
       ],
     };

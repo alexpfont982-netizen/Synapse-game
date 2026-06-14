@@ -1,9 +1,9 @@
 import coolingCoolgrid120mmNew from '../assets/dashboard/components/cooling/cooling_coolgrid_120mm_new.png'
 import coolingCoolgrid120mmRebuilt from '../assets/dashboard/components/cooling/cooling_coolgrid_120mm_rebuilt.png'
 import coolingCoolgrid120mmUsed from '../assets/dashboard/components/cooling/cooling_coolgrid_120mm_used.png'
-import coolingDustfan88mmNew from '../assets/dashboard/components/cooling/cooling_dustfan_80mm_new.png'
-import coolingDustfan88mmRebuilt from '../assets/dashboard/components/cooling/cooling_dustfan_80mm_rebuilt.png'
-import coolingDustfan88mmUsed from '../assets/dashboard/components/cooling/cooling_dustfan_80mm_used.png'
+import coolingDustfan80mmNew from '../assets/dashboard/components/cooling/cooling_dustfan_80mm_new.png'
+import coolingDustfan80mmRebuilt from '../assets/dashboard/components/cooling/cooling_dustfan_80mm_rebuilt.png'
+import coolingDustfan80mmUsed from '../assets/dashboard/components/cooling/cooling_dustfan_80mm_used.png'
 import coolingFrostcoreDualNew from '../assets/dashboard/components/cooling/cooling_frostcore_dual_new.png'
 import coolingFrostcoreDualRebuilt from '../assets/dashboard/components/cooling/cooling_frostcore_dual_rebuilt.png'
 import coolingFrostcoreDualUsed from '../assets/dashboard/components/cooling/cooling_frostcore_dual_used.png'
@@ -1038,7 +1038,7 @@ export const coolingProducts: CoolingProduct[] = [
     price: 700,
     image_path:
       '/assets/dashboard/components/cooling/cooling_dustfan_80mm_used.png',
-    image: coolingDustfan88mmUsed,
+    image: coolingDustfan80mmUsed,
     description:
       'Used 80mm cooling fan with visible wear, basic airflow, and enough thermal relief for compact garage builds.',
     boost: '+3% stability with entry-level racks',
@@ -1057,7 +1057,7 @@ export const coolingProducts: CoolingProduct[] = [
     price: 1100,
     image_path:
       '/assets/dashboard/components/cooling/cooling_dustfan_80mm_rebuilt.png',
-    image: coolingDustfan88mmRebuilt,
+    image: coolingDustfan80mmRebuilt,
     description:
       'Rebuilt 80mm cooling fan with refreshed bearings, steadier airflow, and improved heat control for small systems.',
     boost: '+5% stability with compact builds',
@@ -1076,7 +1076,7 @@ export const coolingProducts: CoolingProduct[] = [
     price: 1600,
     image_path:
       '/assets/dashboard/components/cooling/cooling_dustfan_80mm_new.png',
-    image: coolingDustfan88mmNew,
+    image: coolingDustfan80mmNew,
     description:
       'New 80mm cooling fan tuned for compact enclosures, reliable airflow, and steady temperature reduction in starter rigs.',
     boost: '+7% stability with compact builds',

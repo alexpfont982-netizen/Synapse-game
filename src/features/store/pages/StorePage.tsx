@@ -4,6 +4,10 @@ import {
   garageInventory,
   garageInventoryByCategory,
 } from '../../../data/garageInventory'
+import {
+  purchaseStoreItem,
+  useMockPlayerState,
+} from '../../../data/supabasePlayerState'
 import type {
   GarageInventoryItem,
   StoreItemCondition,
@@ -14,6 +18,13 @@ type StoreMetric = {
   label: string
   value: string
 }
+
+type PurchaseFeedback =
+  | {
+      tone: 'success' | 'error'
+      text: string
+    }
+  | null
 
 const storeTabs: Array<{
   id: StoreTabCategory
@@ -118,7 +129,13 @@ function getProductMetrics(product: GarageInventoryItem): StoreMetric[] {
   }
 }
 
-function StoreProductCard({ product }: { product: GarageInventoryItem }) {
+function StoreProductCard({
+  product,
+  onBuy,
+}: {
+  product: GarageInventoryItem
+  onBuy: (product: GarageInventoryItem) => void
+}) {
   const isPowerCable = product.category === 'power_cable'
   const metrics = getProductMetrics(product)
   const topMetrics = metrics.slice(0, 2)
@@ -201,6 +218,7 @@ function StoreProductCard({ product }: { product: GarageInventoryItem }) {
 
       <button
         type="button"
+        onClick={() => onBuy(product)}
         className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-cyan-300/20 bg-[linear-gradient(90deg,rgba(12,20,34,0.96),rgba(19,33,61,0.94))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-50 transition hover:border-cyan-200/34 hover:shadow-[0_0_24px_rgba(34,211,238,0.16)]"
       >
         <ShoppingCart className="h-4 w-4" />
@@ -212,6 +230,9 @@ function StoreProductCard({ product }: { product: GarageInventoryItem }) {
 
 export function StorePage() {
   const [activeTab, setActiveTab] = useState<StoreTabCategory>('all_items')
+  const [purchaseFeedback, setPurchaseFeedback] =
+    useState<PurchaseFeedback>(null)
+  const { balance, inventory, refresh } = useMockPlayerState()
 
   const activeTabMeta =
     storeTabs.find((tab) => tab.id === activeTab) ?? storeTabs[0]
@@ -219,6 +240,18 @@ export function StorePage() {
     activeTab === 'all_items'
       ? garageInventory
       : garageInventoryByCategory[activeTab]
+
+  const handleBuy = async (product: GarageInventoryItem) => {
+  const result = await purchaseStoreItem(product)
+  if (!result.ok) {
+    setPurchaseFeedback({ tone: 'error', text: 'Insufficient NCR balance.' })
+    return
+  }
+  await refresh()
+  setPurchaseFeedback({ tone: 'success', text: `Purchase completed: ${getDisplayName(product)} added to inventory.` })
+}
+
+    
 
   return (
     <section className="w-full animate-in fade-in duration-300">
@@ -256,41 +289,61 @@ export function StorePage() {
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                  Flow
+                  Balance
                 </p>
-                <p className="mt-2 text-white">Ready for inventory hookup</p>
+                <p className="mt-2 text-white">
+                  {balance.toLocaleString()} NCR
+                </p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="surface-panel rounded-[24px] p-3">
-          <div className="flex flex-wrap gap-2">
-            {storeTabs.map((tab) => {
-              const isActive = tab.id === activeTab
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {storeTabs.map((tab) => {
+                const isActive = tab.id === activeTab
 
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] transition ${
-                    isActive
-                      ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.12)]'
-                      : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-300/18 hover:text-cyan-100'
-                  }`}
-                  aria-pressed={isActive}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] transition ${
+                      isActive
+                        ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.12)]'
+                        : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-300/18 hover:text-cyan-100'
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {purchaseFeedback && (
+              <div
+                className={`rounded-[18px] border px-4 py-3 text-sm ${
+                  purchaseFeedback.tone === 'success'
+                    ? 'border-emerald-300/18 bg-emerald-500/10 text-emerald-100'
+                    : 'border-amber-300/18 bg-amber-500/10 text-amber-100'
+                }`}
+              >
+                {purchaseFeedback.text}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,320px))] justify-center gap-4">
           {visibleProducts.map((product) => (
-            <StoreProductCard key={product.item_id} product={product} />
+            <StoreProductCard
+              key={product.item_id}
+              product={product}
+              onBuy={handleBuy}
+            />
           ))}
         </div>
 
@@ -304,7 +357,10 @@ export function StorePage() {
                 Integration Ready
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-300">
-                This feature is isolated from player-to-player commerce and prepared for future purchase hooks into inventory, racks, and economy validation.
+                Mock purchases now persist locally while this feature stays isolated from player-to-player commerce and future economy integrations.
+              </p>
+              <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500">
+                Inventory records: {inventory.length}
               </p>
             </div>
           </div>

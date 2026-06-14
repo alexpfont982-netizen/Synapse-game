@@ -1,4 +1,4 @@
-import { ArrowUpRight, Cpu, Gamepad2, Thermometer, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, Cpu, Gamepad2, Thermometer, Workflow, type LucideIcon } from 'lucide-react'
 
 interface GameCard {
   title: string
@@ -23,6 +23,17 @@ const gameCards: GameCard[] = [
     path: '/games/lab-duel',
     cta: 'Open arena',
   },
+
+  {
+  title: 'Neural Link',
+  description:
+    'Rotate neural connection nodes to route the data signal from input to model output before time runs out.',
+  status: 'Playable prototype',
+  icon: Workflow,
+  path: '/games/neural-link',
+  cta: 'Open puzzle',
+},
+
   {
     title: 'Heat Control',
     description:
