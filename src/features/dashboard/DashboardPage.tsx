@@ -78,8 +78,6 @@ function getCanonicalPath(sectionId: string) {
   return navItems.find((item) => item.id === sectionId)?.path ?? '/dashboard'
 }
 
-// ── Coordenadas de los botones invisibles sobre cada rack ─────────
-// Ajusta left/width si los racks en tu imagen están en posiciones distintas
 const rackZoomButtons = [
   { id: 1, left: '26.5%', top: '31%', width: '10%', height: '38%' },
   { id: 2, left: '37.8%', top: '31%', width: '10%', height: '38%' },
@@ -87,7 +85,7 @@ const rackZoomButtons = [
   { id: 4, left: '61.2%', top: '31%', width: '10%', height: '38%' },
 ]
 
-// ── ZoomSlot ─────────────────────────────────────────────────────
+// ── ZoomSlot ──────────────────────────────────────────────────────
 function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
   if (!item) {
     return (
@@ -108,7 +106,6 @@ function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
           <div className="h-4/5 w-4/5 rounded-full border-2 border-dashed border-sky-400/40" />
         </div>
       )}
-
       {isPSU ? (
         <PowerSupplyAnimated src={item.image} alt={item.name} />
       ) : (
@@ -119,7 +116,6 @@ function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
           className={`h-full w-full object-contain p-1 select-none ${isCooling ? 'mix-blend-multiply' : ''}`}
         />
       )}
-
       <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
         <p className="truncate text-[8px] font-bold text-slate-200">{item.name}</p>
         <p className="text-[7px] uppercase tracking-wider text-slate-400">{item.condition}</p>
@@ -163,9 +159,9 @@ function RackZoomGrid({ rackId }: { rackId: number }) {
   const installedPieces = Object.values(slotMap).filter(
     (p): p is MockHardwarePiece => p != null
   )
- const installedItemIds = installedPieces.map(p => p.item_id)
-console.log('installedItemIds:', installedItemIds)
-const rackBuffs = useRackBuffs(installedItemIds)
+  const installedItemIds = installedPieces.map(p => p.item_id)
+  const rackBuffs = useRackBuffs(installedItemIds)
+
   const r = `rack${rackId}`
   const sections = [
     {
@@ -208,17 +204,19 @@ const rackBuffs = useRackBuffs(installedItemIds)
 
   return (
     <div className="flex gap-4">
+      {/* Columna izquierda: Rack Status */}
       <div className="w-44 shrink-0 self-start sticky top-0">
         <RackStatusPanel
           {...computeRackStatus(installedPieces)}
-          buffs={rackBuffs.buffs}
           variant="compact"
         />
       </div>
+
+      {/* Columna central: Componentes del rack */}
       <div className="flex flex-col gap-2 w-[320px] shrink-0">
         {sections.map((section) => (
           <div key={section.label}>
-            <p className={`mb-1 text-[8px] font-black uppercase tracking-[0.22em] ${section.color}`}>
+            <p className={`mb-1 text-[9px] font-black uppercase tracking-[0.24em] ${section.color}`}>
               {section.label}
             </p>
             <div
@@ -232,6 +230,27 @@ const rackBuffs = useRackBuffs(installedItemIds)
           </div>
         ))}
       </div>
+
+      {/* Columna derecha: Active Combos */}
+      {rackBuffs.buffs.length > 0 && (
+        <div className="w-44 shrink-0 self-start sticky top-0 flex flex-col gap-1.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-cyan-300/80 mb-1">
+            Active Combos
+          </p>
+          {rackBuffs.activeBoosts.map((b, i) => (
+            <div key={i} className="rounded-md border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1.5">
+              <span className="text-[12px] font-bold text-emerald-400">▲ {b.effect_value}</span>
+              <p className="mt-0.5 text-[11px] text-slate-400 line-clamp-2">{b.description}</p>
+            </div>
+          ))}
+          {rackBuffs.activePenalties.map((b, i) => (
+            <div key={i} className="rounded-md border border-red-400/20 bg-red-500/10 px-2.5 py-1.5">
+              <span className="text-[12px] font-bold text-red-400">▼ {b.effect_value}</span>
+              <p className="mt-0.5 text-[11px] text-slate-400 line-clamp-2">{b.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -244,7 +263,6 @@ export default function DashboardPage({
   const [activeSection, setActiveSection] = useState(() =>
     resolveSectionFromPath(window.location.pathname),
   )
-  // null = ningún rack abierto; 1-4 = rack abierto
   const [zoomedRackId, setZoomedRackId] = useState<number | null>(null)
 
   const { balance, inventory } = useMockPlayerState()
@@ -369,14 +387,11 @@ export default function DashboardPage({
         }
       >
         <div
-          className={`flex h-full w-full justify-center animate-in fade-in duration-300 ${isLaboratorySection ? 'items-start p-0' : 'items-center p-4'
-            }`}
+          className={`flex h-full w-full justify-center animate-in fade-in duration-300 ${isLaboratorySection ? 'items-start p-0' : 'items-center p-4'}`}
         >
           {activeSection === 'dashboard' && (
             <div className="relative w-full max-w-[1360px] pb-28 xl:pb-0">
               <div className="relative aspect-video xl:ml-24">
-
-                {/* ── Contenedor principal del garage ── */}
                 <div className="absolute inset-0 overflow-hidden rounded-xl border border-slate-800/60 bg-[#0a0f16] shadow-[0_0_40px_rgba(34,211,238,0.05)]">
                   <img
                     src={garageLevelOneHero}
@@ -391,7 +406,6 @@ export default function DashboardPage({
                     placement="bottom"
                   />
 
-                  {/* ── Botones invisibles sobre cada rack ── */}
                   {rackZoomButtons.map((btn) => (
                     <button
                       key={btn.id}
@@ -409,7 +423,6 @@ export default function DashboardPage({
                   ))}
                 </div>
 
-                {/* ── Modal de zoom del rack ── */}
                 {zoomedRackId !== null && (
                   <div
                     className="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-black/75 backdrop-blur-sm"
@@ -417,7 +430,7 @@ export default function DashboardPage({
                   >
                     <div
                       className="custom-scrollbar relative overflow-y-auto rounded-2xl border border-cyan-400/20 bg-slate-950 p-4 shadow-[0_0_60px_rgba(34,211,238,0.15)]"
-                      style={{ width: '600px', maxHeight: '90%' }}
+                      style={{ width: '760px', maxHeight: '90%' }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="mb-3 flex items-center justify-between">
