@@ -1,4 +1,4 @@
-import { ArrowUpRight, Cpu, Gamepad2, Thermometer, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, Cpu, Thermometer, Workflow, Zap, type LucideIcon } from 'lucide-react'
 interface GameCard {
   title: string
   description: string
@@ -13,16 +13,7 @@ interface GamesPageProps {
 }
 
 const gameCards: GameCard[] = [
-  {
-    title: 'Lab Duel Arena',
-    description:
-      'Prototype a futuristic 1v1 shooter duel inside a modular research lab with destructible cover and simulated rival pressure.',
-    status: 'Playable prototype',
-    icon: Gamepad2,
-    path: '/games/lab-duel',
-    cta: 'Open arena',
-  },
-
+  
   {
   title: 'Neural Link',
   description:

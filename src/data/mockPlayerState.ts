@@ -17,9 +17,36 @@ export type MockHardwareType =
   | 'ROOM_EXTRACTOR'
 
 export type MockHardwareStats = {
+  // Legacy (usados por el rack status engine)
   tflops: number
   power: number
   heat: number
+  // Stats compartidas (opcionales porque no todos los tipos las tienen)
+  stability?: number
+  temperature_c?: number
+  failure_risk?: number
+  boost?: string
+  penalty?: string
+  // PSU
+  power_w?: number
+  avg_consumption_w?: number
+  // GPU
+  ai_output?: number
+  vram_gb?: number
+  power_consumption_w?: number
+  // Memory
+  processing_speed?: number
+  capacity_gb?: number
+  // Storage
+  read_speed?: number
+  storage_type?: string
+  capacity?: string
+  // Cable
+  stability_bonus?: number
+  power_support?: string
+  // Cooling
+  cooling_power?: number
+  temperature_reduction?: string
 }
 
 export type MockPlayerInventoryItem = {
@@ -119,32 +146,23 @@ let cachedState: MockPlayerState | null = null
 
 function normalizeLegacySlotId(slotId: string) {
   const memorySlotMatch = slotId.match(/^(rack\d+)-(?:memory|mem)-?(\d+)$/)
-
   if (memorySlotMatch) {
     const [, rackId, slotNumber] = memorySlotMatch
-
     return `${rackId}-mem${slotNumber}`
   }
-
   return slotId
 }
 
 function normalizeSlotId(slotId: string | null | undefined) {
-  if (!slotId) {
-    return null
-  }
-
+  if (!slotId) return null
   const normalizedSlotId = normalizeLegacySlotId(slotId)
-
   return VALID_RACK_SLOT_IDS.has(normalizedSlotId) ? normalizedSlotId : null
 }
 
 function normalizeMockPlayerInventoryItem(
   value: unknown,
 ): MockPlayerInventoryItem | null {
-  if (!value || typeof value !== 'object') {
-    return null
-  }
+  if (!value || typeof value !== 'object') return null
 
   const item = value as Partial<MockPlayerInventoryItem>
   const product = typeof item.item_id === 'string'
@@ -169,29 +187,21 @@ function normalizeMockPlayerInventoryItem(
 
   return {
     inventory_id: item.inventory_id,
-    item_id: item.item_id,
-    brand: item.brand,
-    model: item.model,
-    category: item.category as StoreProductCategory,
-    condition: item.condition as StoreItemCondition,
-    price: item.price,
-    image_path:
-      typeof item.image_path === 'string'
-        ? item.image_path
-        : product?.image_path ?? '',
-    image:
-      typeof item.image === 'string'
-        ? item.image
-        : product?.image ?? '',
+    item_id:      item.item_id,
+    brand:        item.brand,
+    model:        item.model,
+    category:     item.category as StoreProductCategory,
+    condition:    item.condition as StoreItemCondition,
+    price:        item.price,
+    image_path:   typeof item.image_path === 'string' ? item.image_path : product?.image_path ?? '',
+    image:        typeof item.image === 'string' ? item.image : product?.image ?? '',
     purchased_at: item.purchased_at,
-    slot_id: normalizeSlotId(item.slot_id),
+    slot_id:      normalizeSlotId(item.slot_id),
   }
 }
 
 function sanitizeMockPlayerState(value: unknown): MockPlayerState {
-  if (!value || typeof value !== 'object') {
-    return DEFAULT_MOCK_PLAYER_STATE
-  }
+  if (!value || typeof value !== 'object') return DEFAULT_MOCK_PLAYER_STATE
 
   const candidate = value as Partial<MockPlayerState>
   const parsedBalance =
@@ -202,13 +212,12 @@ function sanitizeMockPlayerState(value: unknown): MockPlayerState {
   const parsedInventory = Array.isArray(candidate.inventory)
     ? candidate.inventory.flatMap((item) => {
         const normalizedItem = normalizeMockPlayerInventoryItem(item)
-
         return normalizedItem ? [normalizedItem] : []
       })
     : []
 
   return {
-    balance: Math.max(0, parsedBalance),
+    balance:   Math.max(0, parsedBalance),
     inventory: parsedInventory,
   }
 }
@@ -216,12 +225,9 @@ function sanitizeMockPlayerState(value: unknown): MockPlayerState {
 function isLegacyMockStoreInventoryItem(
   value: unknown,
 ): value is LegacyMockStoreInventoryItem {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
+  if (!value || typeof value !== 'object') return false
 
   const item = value as Partial<LegacyMockStoreInventoryItem>
-
   return (
     typeof item.item_id === 'string' &&
     typeof item.brand === 'string' &&
@@ -234,52 +240,37 @@ function isLegacyMockStoreInventoryItem(
 }
 
 function readLegacyMockPlayerState() {
-  if (typeof window === 'undefined') {
-    return DEFAULT_MOCK_PLAYER_STATE
-  }
+  if (typeof window === 'undefined') return DEFAULT_MOCK_PLAYER_STATE
 
   try {
-    const storedBalance = window.localStorage.getItem(LEGACY_STORE_BALANCE_KEY)
+    const storedBalance   = window.localStorage.getItem(LEGACY_STORE_BALANCE_KEY)
     const storedInventory = window.localStorage.getItem(LEGACY_STORE_INVENTORY_KEY)
-    const parsedBalance = storedBalance === null ? Number.NaN : Number(storedBalance)
+    const parsedBalance   = storedBalance === null ? Number.NaN : Number(storedBalance)
 
-    if (!storedBalance && !storedInventory) {
-      return DEFAULT_MOCK_PLAYER_STATE
-    }
+    if (!storedBalance && !storedInventory) return DEFAULT_MOCK_PLAYER_STATE
 
-    const legacyInventory: unknown = storedInventory
-      ? JSON.parse(storedInventory)
-      : []
+    const legacyInventory: unknown = storedInventory ? JSON.parse(storedInventory) : []
 
     const inventory = Array.isArray(legacyInventory)
       ? legacyInventory
           .filter(isLegacyMockStoreInventoryItem)
           .map((item) => ({
             inventory_id: createInventoryId(),
-            item_id: item.item_id,
-            brand: item.brand,
-            model: item.model,
-            category: item.category,
-            condition: item.condition,
-            price: item.price,
-            image_path:
-              item.image_path ??
-              inventoryCatalogByItemId.get(item.item_id)?.image_path ??
-              '',
-            image:
-              item.image ??
-              inventoryCatalogByItemId.get(item.item_id)?.image ??
-              '',
+            item_id:      item.item_id,
+            brand:        item.brand,
+            model:        item.model,
+            category:     item.category,
+            condition:    item.condition,
+            price:        item.price,
+            image_path:   item.image_path ?? inventoryCatalogByItemId.get(item.item_id)?.image_path ?? '',
+            image:        item.image ?? inventoryCatalogByItemId.get(item.item_id)?.image ?? '',
             purchased_at: item.purchased_at,
-            slot_id: null,
+            slot_id:      null,
           }))
       : []
 
     return {
-      balance:
-        Number.isFinite(parsedBalance) && parsedBalance >= 0
-          ? parsedBalance
-          : DEFAULT_MOCK_BALANCE,
+      balance:   Number.isFinite(parsedBalance) && parsedBalance >= 0 ? parsedBalance : DEFAULT_MOCK_BALANCE,
       inventory,
     }
   } catch {
@@ -288,23 +279,16 @@ function readLegacyMockPlayerState() {
 }
 
 function readStoredMockPlayerState() {
-  if (typeof window === 'undefined') {
-    return DEFAULT_MOCK_PLAYER_STATE
-  }
+  if (typeof window === 'undefined') return DEFAULT_MOCK_PLAYER_STATE
 
   try {
     const storedState = window.localStorage.getItem(MOCK_PLAYER_STATE_KEY)
 
     if (!storedState) {
       const migratedState = readLegacyMockPlayerState()
-
-      if (
-        migratedState.balance !== DEFAULT_MOCK_BALANCE ||
-        migratedState.inventory.length > 0
-      ) {
+      if (migratedState.balance !== DEFAULT_MOCK_BALANCE || migratedState.inventory.length > 0) {
         writeStoredMockPlayerState(migratedState)
       }
-
       return migratedState
     }
 
@@ -315,10 +299,7 @@ function readStoredMockPlayerState() {
 }
 
 function writeStoredMockPlayerState(state: MockPlayerState) {
-  if (typeof window === 'undefined') {
-    return
-  }
-
+  if (typeof window === 'undefined') return
   window.localStorage.setItem(MOCK_PLAYER_STATE_KEY, JSON.stringify(state))
 }
 
@@ -327,10 +308,7 @@ function emitChange() {
 }
 
 function getSnapshot() {
-  if (!cachedState) {
-    cachedState = readStoredMockPlayerState()
-  }
-
+  if (!cachedState) cachedState = readStoredMockPlayerState()
   return cachedState
 }
 
@@ -338,15 +316,11 @@ function getServerSnapshot() {
   return DEFAULT_MOCK_PLAYER_STATE
 }
 
-function setState(
-  updater: (currentState: MockPlayerState) => MockPlayerState,
-): MockPlayerState {
+function setState(updater: (currentState: MockPlayerState) => MockPlayerState): MockPlayerState {
   const currentState = getSnapshot()
-  const nextState = updater(currentState)
+  const nextState    = updater(currentState)
 
-  if (nextState === currentState) {
-    return currentState
-  }
+  if (nextState === currentState) return currentState
 
   cachedState = nextState
   writeStoredMockPlayerState(nextState)
@@ -359,16 +333,11 @@ function subscribe(listener: () => void) {
   listeners.add(listener)
 
   if (typeof window === 'undefined') {
-    return () => {
-      listeners.delete(listener)
-    }
+    return () => { listeners.delete(listener) }
   }
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key !== MOCK_PLAYER_STATE_KEY) {
-      return
-    }
-
+    if (event.key !== MOCK_PLAYER_STATE_KEY) return
     cachedState = readStoredMockPlayerState()
     listener()
   }
@@ -385,80 +354,101 @@ function createInventoryId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
-
   return `inventory_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 }
 
 function parseSignedNumber(value: string) {
   const match = value.match(/-?\d+/)
-
   return match ? Number(match[0]) : 0
 }
 
 function getStoreDisplayName(product: GarageInventoryItem) {
-  if (product.category === 'power_supply') {
-    return `${product.brand} ${product.power_w}`
-  }
-
+  if (product.category === 'power_supply') return `${product.brand} ${product.power_w}`
   return `${product.brand} ${product.model}`
 }
 
-function getHardwareType(
-  category: StoreProductCategory,
-): MockHardwareType {
+function getHardwareType(category: StoreProductCategory): MockHardwareType {
   switch (category) {
-    case 'power_supply':
-      return 'POWER_UNIT'
-    case 'power_cable':
-      return 'CABLE_KIT'
-    case 'cooling':
-      return 'COOLING'
-    case 'memory':
-      return 'MEMORY'
-    case 'storage':
-      return 'STORAGE'
-    case 'gpu':
-      return 'GPU'
+    case 'power_supply': return 'POWER_UNIT'
+    case 'power_cable':  return 'CABLE_KIT'
+    case 'cooling':      return 'COOLING'
+    case 'memory':       return 'MEMORY'
+    case 'storage':      return 'STORAGE'
+    case 'gpu':          return 'GPU'
+  }
+}
+
+// Helper para extraer stats compartidas solo si el tipo las tiene
+function getSharedStats(product: GarageInventoryItem) {
+  return {
+    boost:   product.boost,
+    penalty: product.penalty,
+    // Solo productos que tienen estos campos los incluyen
+    stability:     'stability'     in product ? (product as { stability: number }).stability         : undefined,
+    temperature_c: 'temperature_c' in product ? (product as { temperature_c: number }).temperature_c : undefined,
+    failure_risk:  'failure_risk'  in product ? (product as { failure_risk: number }).failure_risk   : undefined,
   }
 }
 
 function getHardwareStats(product: GarageInventoryItem): MockHardwareStats {
+  const shared = getSharedStats(product)
+
   switch (product.category) {
     case 'power_supply':
       return {
         tflops: 0,
-        power: product.avg_consumption_w,
-        heat: Math.max(0, product.temperature_c - 20),
+        power:  product.avg_consumption_w,
+        heat:   Math.max(0, product.temperature_c - 20),
+        ...shared,
+        power_w:           product.power_w,
+        avg_consumption_w: product.avg_consumption_w,
       }
     case 'power_cable':
       return {
         tflops: 0,
-        power: 0,
-        heat: 0,
+        power:  0,
+        heat:   0,
+        ...shared,
+        stability_bonus: product.stability_bonus,
+        power_support:   product.power_support,
       }
     case 'memory':
       return {
         tflops: 0,
-        power: 0,
-        heat: Math.max(0, product.temperature_c - 18),
+        power:  0,
+        heat:   Math.max(0, product.temperature_c - 18),
+        ...shared,
+        processing_speed: product.processing_speed,
+        capacity_gb:      product.capacity_gb,
       }
     case 'storage':
       return {
         tflops: 0,
-        power: 0,
-        heat: Math.max(0, product.temperature_c - 18),
+        power:  0,
+        heat:   Math.max(0, product.temperature_c - 18),
+        ...shared,
+        read_speed:   product.read_speed,
+        storage_type: product.storage_type,
+        capacity:     product.capacity,
       }
     case 'gpu':
       return {
         tflops: Math.max(0.1, product.ai_output / 10),
-        power: product.power_consumption_w,
-        heat: Math.max(0, product.temperature_c - 18),
+        power:  product.power_consumption_w,
+        heat:   Math.max(0, product.temperature_c - 18),
+        ...shared,
+        ai_output:           product.ai_output,
+        vram_gb:             product.vram_gb,
+        power_consumption_w: product.power_consumption_w,
       }
     case 'cooling':
       return {
         tflops: 0,
-        power: 0,
-        heat: -Math.abs(parseSignedNumber(product.temperature_reduction)),
+        power:  0,
+        heat:   -Math.abs(parseSignedNumber(product.temperature_reduction)),
+        ...shared,
+        cooling_power:        product.cooling_power,
+        temperature_reduction: product.temperature_reduction,
       }
   }
 }
@@ -467,55 +457,37 @@ export function useMockPlayerState() {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
 
-export function purchaseStoreItem(
-  product: GarageInventoryItem,
-): PurchaseResult {
+export function purchaseStoreItem(product: GarageInventoryItem): PurchaseResult {
   let createdEntry: MockPlayerInventoryItem | null = null
 
   const nextState = setState((currentState) => {
-    if (currentState.balance < product.price) {
-      return currentState
-    }
+    if (currentState.balance < product.price) return currentState
 
     createdEntry = {
       inventory_id: createInventoryId(),
-      item_id: product.item_id,
-      brand: product.brand,
-      model: product.model,
-      category: product.category,
-      condition: product.condition,
-      price: product.price,
-      image_path: product.image_path,
-      image: product.image,
+      item_id:      product.item_id,
+      brand:        product.brand,
+      model:        product.model,
+      category:     product.category,
+      condition:    product.condition,
+      price:        product.price,
+      image_path:   product.image_path,
+      image:        product.image,
       purchased_at: new Date().toISOString(),
-      slot_id: null,
+      slot_id:      null,
     }
 
     return {
-      balance: currentState.balance - product.price,
+      balance:   currentState.balance - product.price,
       inventory: [...currentState.inventory, createdEntry],
     }
   })
 
-  if (!createdEntry) {
-    return {
-      ok: false,
-      reason: 'insufficient_balance',
-      state: nextState,
-    }
-  }
-
-  return {
-    ok: true,
-    entry: createdEntry,
-    state: nextState,
-  }
+  if (!createdEntry) return { ok: false, reason: 'insufficient_balance', state: nextState }
+  return { ok: true, entry: createdEntry, state: nextState }
 }
 
-export function updateInventoryItemSlot(
-  inventoryId: string,
-  slotId: string | null,
-) {
+export function updateInventoryItemSlot(inventoryId: string, slotId: string | null) {
   return setState((currentState) => ({
     ...currentState,
     inventory: currentState.inventory.map((item) =>
@@ -526,31 +498,26 @@ export function updateInventoryItemSlot(
   }))
 }
 
-export function selectMockHardwarePieces(
-  inventory: MockPlayerInventoryItem[],
-) {
+export function selectMockHardwarePieces(inventory: MockPlayerInventoryItem[]) {
   return inventory.flatMap((item) => {
     const product = inventoryCatalogByItemId.get(item.item_id)
-
-    if (!product) {
-      return []
-    }
+    if (!product) return []
 
     return [
       {
-        id: item.inventory_id,
-        type: getHardwareType(item.category),
-        name: getStoreDisplayName(product),
-        brand: item.brand,
-        model: item.model,
-        category: item.category,
-        condition: item.condition,
-        price: item.price,
+        id:           item.inventory_id,
+        type:         getHardwareType(item.category),
+        name:         getStoreDisplayName(product),
+        brand:        item.brand,
+        model:        item.model,
+        category:     item.category,
+        condition:    item.condition,
+        price:        item.price,
         inventory_id: item.inventory_id,
-        slot_id: item.slot_id,
-        image_path: item.image_path || product.image_path,
-        image: item.image || product.image,
-        stats: getHardwareStats(product),
+        slot_id:      item.slot_id,
+        image_path:   item.image_path || product.image_path,
+        image:        item.image      || product.image,
+        stats:        getHardwareStats(product),
       },
     ] satisfies MockHardwarePiece[]
   })

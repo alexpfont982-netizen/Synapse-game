@@ -20,14 +20,14 @@ const inventoryTabs: Array<{
   id: InventoryFilterTab
   label: string
 }> = [
-    { id: 'all', label: 'All' },
-    { id: 'power_supply', label: 'PSU' },
-    { id: 'power_cable', label: 'Cables' },
-    { id: 'memory', label: 'RAM' },
-    { id: 'storage', label: 'Storage' },
-    { id: 'gpu', label: 'GPU' },
-    { id: 'cooling', label: 'Cooling' },
-  ]
+  { id: 'all',          label: 'All' },
+  { id: 'power_supply', label: 'PSU' },
+  { id: 'power_cable',  label: 'Cables' },
+  { id: 'memory',       label: 'RAM' },
+  { id: 'storage',      label: 'Storage' },
+  { id: 'gpu',          label: 'GPU' },
+  { id: 'cooling',      label: 'Cooling' },
+]
 
 function getMemorySlotId(rackId: number, slotNumber: number) {
   return `rack${rackId}-mem${slotNumber}`
@@ -36,13 +36,13 @@ function getMemorySlotId(rackId: number, slotNumber: number) {
 function generateEmptyRacks() {
   const slots: Record<string, HardwarePiece | null> = {}
 
-  for (let rack = 1; rack <= 1; rack += 1) {
-    slots[`rack${rack}-power1`] = null
-    slots[`rack${rack}-power2`] = null
+  for (let rack = 1; rack <= 4; rack += 1) {
+    slots[`rack${rack}-power1`]     = null
+    slots[`rack${rack}-power2`]     = null
     slots[`rack${rack}-cable-kit1`] = null
     slots[`rack${rack}-cable-kit2`] = null
-    slots[`rack${rack}-cooling1`] = null
-    slots[`rack${rack}-cooling2`] = null
+    slots[`rack${rack}-cooling1`]   = null
+    slots[`rack${rack}-cooling2`]   = null
 
     for (let memorySlot = 1; memorySlot <= 6; memorySlot += 1) {
       slots[getMemorySlotId(rack, memorySlot)] = null
@@ -64,10 +64,7 @@ function buildRackSlots(hardware: HardwarePiece[]) {
   const slots = generateEmptyRacks()
 
   hardware.forEach((item) => {
-    if (!item.slot_id) {
-      return
-    }
-
+    if (!item.slot_id) return
     if (Object.prototype.hasOwnProperty.call(slots, item.slot_id)) {
       slots[item.slot_id] = item
     }
@@ -99,10 +96,11 @@ function InventoryDropZone({
   return (
     <div
       ref={setNodeRef}
-      className={`custom-scrollbar w-full overflow-y-auto rounded-2xl border p-4 shadow-[0_0_28px_rgba(8,145,178,0.10)] backdrop-blur-md transition-all ${isOver
-        ? 'border-cyan-500 bg-slate-800/90 shadow-[0_0_20px_rgba(6,182,212,0.2)]'
-        : 'border-slate-800 bg-slate-950/80'
-        } ${className ?? 'h-full'}`}
+      className={`custom-scrollbar w-full overflow-y-auto rounded-2xl border p-4 shadow-[0_0_28px_rgba(8,145,178,0.10)] backdrop-blur-md transition-all ${
+        isOver
+          ? 'border-cyan-500 bg-slate-800/90 shadow-[0_0_20px_rgba(6,182,212,0.2)]'
+          : 'border-slate-800 bg-slate-950/80'
+      } ${className ?? 'h-full'}`}
     >
       <div className="sticky top-0 z-10 -mx-2 mb-3 space-y-2 bg-slate-950/95 px-2 pb-2 pt-1 backdrop-blur-md">
         <div className="flex items-end justify-between gap-3">
@@ -119,16 +117,16 @@ function InventoryDropZone({
         <div className="flex flex-wrap gap-1.5">
           {inventoryTabs.map((tab) => {
             const isActive = tab.id === activeFilter
-
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => onFilterChange(tab.id)}
-                className={`rounded-full border px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] transition ${isActive
-                  ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.1)]'
-                  : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-300/18 hover:text-cyan-100'
-                  }`}
+                className={`rounded-full border px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] transition ${
+                  isActive
+                    ? 'border-cyan-300/30 bg-cyan-400/12 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.1)]'
+                    : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-300/18 hover:text-cyan-100'
+                }`}
                 aria-pressed={isActive}
               >
                 {tab.label}
@@ -164,7 +162,6 @@ function LaboratoryPanel({
   )
 }
 
-// ── Stat card reutilizable para Rack Status ──────────────────
 function StatCard({
   label,
   value,
@@ -184,7 +181,6 @@ function StatCard({
   )
 }
 
-// ── Slot count por categoría ─────────────────────────────────
 function SlotCountRow({
   label,
   filled,
@@ -207,19 +203,21 @@ function SlotCountRow({
 
 export function LaboratoryEditor() {
   const { inventory: inventoryEntries, refresh } = useMockPlayerState()
-  const [activeDragType, setActiveDragType] = useState<ComponentType | null>(null)
+  const [activeDragType,       setActiveDragType]       = useState<ComponentType | null>(null)
   const [activeInventoryFilter, setActiveInventoryFilter] = useState<InventoryFilterTab>('all')
-  const [activeDraggedItem, setActiveDraggedItem] = useState<HardwarePiece | null>(null)
-  const [selectedRackId, setSelectedRackId] = useState(1)
+  const [activeDraggedItem,    setActiveDraggedItem]    = useState<HardwarePiece | null>(null)
+  const [selectedRackId,       setSelectedRackId]       = useState(1)
 
   const hardwarePieces = useMemo(
     () => selectMockHardwarePieces(inventoryEntries),
     [inventoryEntries],
   )
+
   const inventory = useMemo(
     () => hardwarePieces.filter((item) => item.slot_id === null),
     [hardwarePieces],
   )
+
   const filteredInventory = useMemo(() => {
     if (activeInventoryFilter === 'all') return inventory
     return inventory.filter((item) => item.category === activeInventoryFilter)
@@ -229,20 +227,25 @@ export function LaboratoryEditor() {
     () => hardwarePieces.filter((item) => item.slot_id !== null),
     [hardwarePieces],
   )
+
   const rackSlots = useMemo(() => buildRackSlots(hardwarePieces), [hardwarePieces])
 
-  // ── Rack Status dinámico ─────────────────────────────────────
+  // ── Rack Status dinámico ─────────────────────────────────────────
   const rackStatus = useMemo(() => {
-    let powerLoad = 0
+    const rackInstalled = installedHardware.filter((p) =>
+      p.slot_id?.startsWith(`rack${selectedRackId}-`)
+    )
+
+    let powerLoad       = 0
     let baseTemperature = 22
-    let coolingOffset = 0
-    let aiOutput = 0
+    let coolingOffset   = 0
+    let aiOutput        = 0
     let stabilityPoints = 0
 
-    installedHardware.forEach((piece) => {
+    rackInstalled.forEach((piece) => {
       const stats = piece.stats ?? { tflops: 0, power: 0, heat: 0 }
       powerLoad += Math.max(0, stats.power ?? 0)
-      aiOutput += piece.type === 'GPU' ? Math.max(0, stats.tflops ?? 0) : 0
+      aiOutput  += piece.type === 'GPU' ? Math.max(0, stats.tflops ?? 0) : 0
       if (piece.type === 'COOLING') {
         coolingOffset += Math.abs(stats.heat ?? 0)
       } else {
@@ -256,40 +259,33 @@ export function LaboratoryEditor() {
       powerLoad,
       temperature: Math.max(20, baseTemperature - coolingOffset),
       stability:
-        installedHardware.length > 0
-          ? Math.round(stabilityPoints / installedHardware.length)
+        rackInstalled.length > 0
+          ? Math.round(stabilityPoints / rackInstalled.length)
           : 100,
       aiOutput,
-      installedCount: installedHardware.length,
+      installedCount: rackInstalled.length,
     }
-  }, [installedHardware])
+  }, [installedHardware, selectedRackId])
 
-  // ── Conteo de slots por categoría ───────────────────────────
+  // ── Conteo de slots por categoría ────────────────────────────────
   const slotCounts = useMemo(() => {
-    const counts = installedHardware.reduce<Record<ComponentType, number>>(
-      (acc, piece) => {
-        acc[piece.type] += 1
-        return acc
-      },
-      {
-        GPU: 0,
-        MEMORY: 0,
-        STORAGE: 0,
-        POWER_UNIT: 0,
-        CABLE_KIT: 0,
-        COOLING: 0,
-        ROOM_FAN: 0,
-        ROOM_EXTRACTOR: 0,
-      },
+    const rackInstalled = installedHardware.filter((p) =>
+      p.slot_id?.startsWith(`rack${selectedRackId}-`)
     )
-    return counts
-  }, [installedHardware])
+    return rackInstalled.reduce<Record<ComponentType, number>>(
+      (acc, piece) => { acc[piece.type] += 1; return acc },
+      { GPU: 0, MEMORY: 0, STORAGE: 0, POWER_UNIT: 0, CABLE_KIT: 0, COOLING: 0, ROOM_FAN: 0, ROOM_EXTRACTOR: 0 },
+    )
+  }, [installedHardware, selectedRackId])
 
-  // ── System Events dinámicos ──────────────────────────────────
+  // ── System Events dinámicos ───────────────────────────────────────
   const systemEvents = useMemo(() => {
+    const rackInstalled = installedHardware.filter((p) =>
+      p.slot_id?.startsWith(`rack${selectedRackId}-`)
+    )
     return [
-      installedHardware.length > 0
-        ? { title: 'Component Installed', detail: `${installedHardware.length} modules mounted in the active rack.`, color: 'text-violet-200/85' }
+      rackInstalled.length > 0
+        ? { title: 'Component Installed', detail: `${rackInstalled.length} modules mounted.`, color: 'text-violet-200/85' }
         : { title: 'Rack Awaiting Components', detail: 'Drag hardware from inventory to begin setup.', color: 'text-slate-400' },
       slotCounts.POWER_UNIT > 0
         ? { title: 'Power Supply Connected', detail: `${slotCounts.POWER_UNIT}/2 PSU slots active.`, color: 'text-amber-200/85' }
@@ -301,15 +297,15 @@ export function LaboratoryEditor() {
         ? { title: 'GPU Array Online', detail: `${slotCounts.GPU}/6 GPU slots active.`, color: 'text-cyan-200/85' }
         : { title: 'GPU Array Waiting', detail: 'Install GPUs to unlock compute.', color: 'text-slate-400' },
     ]
-  }, [installedHardware, slotCounts])
+  }, [installedHardware, slotCounts, selectedRackId])
 
+  // ── Rack Access — todos desbloqueados para setup ─────────────────
   const rackAccess = [
-    { id: 1, label: 'Rack 01', status: 'EMPTY', unlocked: true, price: 0 },
-    { id: 2, label: 'Rack 02', status: 'LOCKED', unlocked: false, price: 2500 },
-    { id: 3, label: 'Rack 03', status: 'LOCKED', unlocked: false, price: 7500 },
-    { id: 4, label: 'Rack 04', status: 'LOCKED', unlocked: false, price: 18000 },
-  ]
-
+  { id: 1, label: 'Rack 01', status: 'ACTIVATED', unlocked: true, price: 0 },
+  { id: 2, label: 'Rack 02', status: 'ACTIVATED', unlocked: true, price: 2500 },
+  { id: 3, label: 'Rack 03', status: 'ACTIVATED', unlocked: true, price: 7500 },
+  { id: 4, label: 'Rack 04', status: 'ACTIVATED', unlocked: true, price: 18000 },
+]
   function handleDragStart(event: DragStartEvent) {
     const activeData = event.active.data.current as { type: ComponentType } | undefined
     setActiveDragType(activeData?.type ?? null)
@@ -324,10 +320,10 @@ export function LaboratoryEditor() {
     const { active, over } = event
     if (!over) return
 
-    const activeId = active.id as string
-    const overId = over.id as string
-    const acceptedType = (over.data.current as { accepts?: ComponentType } | undefined)?.accepts
-    const draggedItem = hardwarePieces.find((piece) => piece.id === activeId)
+    const activeId      = active.id as string
+    const overId        = over.id as string
+    const acceptedType  = (over.data.current as { accepts?: ComponentType } | undefined)?.accepts
+    const draggedItem   = hardwarePieces.find((piece) => piece.id === activeId)
 
     if (!draggedItem) return
 
@@ -351,7 +347,7 @@ export function LaboratoryEditor() {
     }
   }
 
-  // ── Rack Selector ────────────────────────────────────────────
+  // ── Rack Selector ─────────────────────────────────────────────────
   const renderRackSelector = () => (
     <div className="relative z-20 flex w-full shrink-0 flex-col gap-2">
       {rackAccess.map((rack) => {
@@ -362,12 +358,13 @@ export function LaboratoryEditor() {
             type="button"
             disabled={!rack.unlocked}
             onClick={() => { if (rack.unlocked) setSelectedRackId(rack.id) }}
-            className={`w-full rounded-xl border px-3 py-3 text-left transition-all ${isSelected
-              ? 'border-cyan-400/60 bg-cyan-500/10 shadow-[0_0_18px_rgba(34,211,238,0.16)]'
-              : rack.unlocked
+            className={`w-full rounded-xl border px-3 py-3 text-left transition-all ${
+              isSelected
+                ? 'border-cyan-400/60 bg-cyan-500/10 shadow-[0_0_18px_rgba(34,211,238,0.16)]'
+                : rack.unlocked
                 ? 'border-slate-700/60 bg-slate-950/70 hover:border-cyan-400/30'
                 : 'border-slate-800/70 bg-slate-950/40 opacity-60'
-              }`}
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-200">
@@ -379,7 +376,9 @@ export function LaboratoryEditor() {
                 </span>
               )}
             </div>
-            <p className={`mt-2 text-[9px] font-bold uppercase tracking-[0.18em] ${rack.unlocked ? 'text-cyan-300/70' : 'text-slate-500'}`}>
+            <p className={`mt-2 text-[9px] font-bold uppercase tracking-[0.18em] ${
+              rack.unlocked ? 'text-cyan-300/70' : 'text-slate-500'
+            }`}>
               {rack.unlocked ? rack.status : `${rack.price.toLocaleString()} NCR`}
             </p>
           </button>
@@ -388,7 +387,7 @@ export function LaboratoryEditor() {
     </div>
   )
 
-  // ── Render Rack ──────────────────────────────────────────────
+  // ── Render Rack ───────────────────────────────────────────────────
   const renderRack = (rackId: number) => {
     const getSlotItem = (slotId: string) => rackSlots[slotId] ?? null
 
@@ -460,47 +459,22 @@ export function LaboratoryEditor() {
           Core Node 0{rackId}
         </h2>
 
-        {/* PSU — 2 slots */}
         <RackSection label="Power System" color="text-amber-300/70">
-          <SlotRow
-            slot1={`rack${rackId}-power1`}
-            slot2={`rack${rackId}-power2`}
-            accepts="POWER_UNIT"
-            height="!h-[72px]"
-          />
+          <SlotRow slot1={`rack${rackId}-power1`} slot2={`rack${rackId}-power2`} accepts="POWER_UNIT" height="!h-[72px]" />
         </RackSection>
 
-        {/* Cables — 2 slots */}
         <RackSection label="Power Cables" color="text-slate-300/70">
-          <SlotRow
-            slot1={`rack${rackId}-cable-kit1`}
-            slot2={`rack${rackId}-cable-kit2`}
-            accepts="CABLE_KIT"
-            height="!h-[68px]"
-          />
+          <SlotRow slot1={`rack${rackId}-cable-kit1`} slot2={`rack${rackId}-cable-kit2`} accepts="CABLE_KIT" />
         </RackSection>
 
-        {/* Cooling — 2 slots */}
         <RackSection label="Cooling System" color="text-sky-300/70">
-          <SlotRow
-            slot1={`rack${rackId}-cooling1`}
-            slot2={`rack${rackId}-cooling2`}
-            accepts="COOLING"
-            height="!h-[68px]"
-          />
+          <SlotRow slot1={`rack${rackId}-cooling1`} slot2={`rack${rackId}-cooling2`} accepts="COOLING" />
         </RackSection>
 
-        {/* Storage — 2 slots */}
         <RackSection label="Storage Bay" color="text-emerald-300/70">
-          <SlotRow
-            slot1={`rack${rackId}-storage1`}
-            slot2={`rack${rackId}-storage2`}
-            accepts="STORAGE"
-            height="!h-[68px]"
-          />
+          <SlotRow slot1={`rack${rackId}-storage1`} slot2={`rack${rackId}-storage2`} accepts="STORAGE" />
         </RackSection>
 
-        {/* RAM — 6 slots en grid 3×2 */}
         <RackSection label="Memory Bank" color="text-purple-300/70">
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 6 }).map((_, index) => {
@@ -519,7 +493,6 @@ export function LaboratoryEditor() {
           </div>
         </RackSection>
 
-        {/* GPU — 6 slots en grid 3×2 */}
         <RackSection label="GPU Array" color="text-cyan-300/70">
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -538,7 +511,7 @@ export function LaboratoryEditor() {
     )
   }
 
-  // ── Render principal ─────────────────────────────────────────
+  // ── Render principal ──────────────────────────────────────────────
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <section className="relative z-10 flex h-[calc(100vh+50px)] min-h-[900px] w-full max-w-[1700px] min-w-0 items-stretch gap-3 p-3">
@@ -560,8 +533,6 @@ export function LaboratoryEditor() {
 
                 <LaboratoryPanel title="Rack Status" className="shrink-0">
                   <div className="space-y-2">
-
-                    {/* Métricas dinámicas */}
                     <StatCard
                       label="Power Load"
                       value={`${rackStatus.powerLoad} W`}
@@ -584,24 +555,22 @@ export function LaboratoryEditor() {
                     />
                     <StatCard
                       label="Components"
-                      value={`${rackStatus.installedCount}/24`}
+                      value={`${rackStatus.installedCount}/20`}
                       valueColor="text-white"
                     />
 
-                    {/* Slot counts por categoría */}
                     <div className="rounded-xl border border-white/6 bg-white/[0.03] px-3 py-2 space-y-1.5">
                       <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-2">
                         Slot Fill
                       </p>
-                      <SlotCountRow label="PSU" filled={slotCounts.POWER_UNIT} total={2} />
-                      <SlotCountRow label="Cables" filled={slotCounts.CABLE_KIT} total={2} />
-                      <SlotCountRow label="Cooling" filled={slotCounts.COOLING} total={2} />
-                      <SlotCountRow label="Storage" filled={slotCounts.STORAGE} total={2} />
-                      <SlotCountRow label="RAM" filled={slotCounts.MEMORY} total={6} />
-                      <SlotCountRow label="GPU" filled={slotCounts.GPU} total={6} />
+                      <SlotCountRow label="PSU"     filled={slotCounts.POWER_UNIT} total={2} />
+                      <SlotCountRow label="Cables"  filled={slotCounts.CABLE_KIT}  total={2} />
+                      <SlotCountRow label="Cooling" filled={slotCounts.COOLING}    total={2} />
+                      <SlotCountRow label="Storage" filled={slotCounts.STORAGE}    total={2} />
+                      <SlotCountRow label="RAM"     filled={slotCounts.MEMORY}     total={6} />
+                      <SlotCountRow label="GPU"     filled={slotCounts.GPU}        total={6} />
                     </div>
 
-                    {/* System Events */}
                     <div className="border-t border-white/10 pt-2">
                       <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-cyan-200/85 mb-2">
                         System Events

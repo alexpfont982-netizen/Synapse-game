@@ -1,4 +1,4 @@
-type ComponentType =
+export type ComponentType =
   | 'GPU'
   | 'MEMORY'
   | 'STORAGE'
@@ -14,7 +14,7 @@ type RackVisualMode =
   | 'EXPANSION_ZONE'
   | 'FUTURE_EXPANSION';
 
-interface InstalledHardware {
+export interface InstalledHardware {
   id: string;
   type: ComponentType;
   slot_id: string | null;

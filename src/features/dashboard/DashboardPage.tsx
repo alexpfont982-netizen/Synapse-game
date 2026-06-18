@@ -18,16 +18,17 @@ import { GarageRoomIndicators } from './components/GarageRoomIndicators';
 import StorePage from '../store/pages/StorePage';
 import MarketplacePage from '../marketplace/pages/MarketplacePage';
 import GamesPage from '../../pages/GamesPage'
-import LabDuelArena from '../lab-duel/LabDuelArena'
 import NeuralLink from '../neural-link/NeuralLink'
 import PacketStorm from '../packet-storm/PacketStorm'
 import NetRush from '../net-rush/NetRush'
+import { PowerSupplyAnimated } from './components/PowerSupplyAnimated'
 import {
-
   selectMockHardwarePieces,
   useMockPlayerState,
   type MockHardwarePiece,
 } from '../../data/supabasePlayerState'
+import RackStatusPanel from './components/RackStatusPanel';
+import { computeRackStatus } from './utils/computeRackStatus';
 
 interface DashboardPageProps {
   session: {
@@ -60,7 +61,6 @@ function normalizePathname(pathname: string) {
 
 function resolveSectionFromPath(pathname: string) {
   const normalizedPath = normalizePathname(pathname)
-  if (normalizedPath === '/games/lab-duel') return 'lab-duel'
   if (normalizedPath === '/games/neural-link') return 'neural-link'
   if (normalizedPath === '/games/packet-storm') return 'packet-storm'
   if (normalizedPath === '/games/net-rush') return 'net-rush'
@@ -71,12 +71,20 @@ function resolveSectionFromPath(pathname: string) {
 }
 
 function getCanonicalPath(sectionId: string) {
-  if (sectionId === 'lab-duel') return '/games/lab-duel'
   if (sectionId === 'neural-link') return '/games/neural-link'
   if (sectionId === 'packet-storm') return '/games/packet-storm'
   if (sectionId === 'net-rush') return '/games/net-rush'
   return navItems.find((item) => item.id === sectionId)?.path ?? '/dashboard'
 }
+
+// ── Coordenadas de los botones invisibles sobre cada rack ─────────
+// Ajusta left/width si los racks en tu imagen están en posiciones distintas
+const rackZoomButtons = [
+  { id: 1, left: '26.5%', top: '31%', width: '10%', height: '38%' },
+  { id: 2, left: '37.8%', top: '31%', width: '10%', height: '38%' },
+  { id: 3, left: '49.4%', top: '31%', width: '10%', height: '38%' },
+  { id: 4, left: '61.2%', top: '31%', width: '10%', height: '38%' },
+]
 
 // ── ZoomSlot ─────────────────────────────────────────────────────
 function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
@@ -87,6 +95,7 @@ function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
   }
 
   const isCooling = item.type === 'COOLING'
+  const isPSU = item.brand === 'RustCore' && item.model === 'PS_350A' && item.condition === 'New'
 
   return (
     <div className="relative h-[72px] flex-1 overflow-hidden rounded-lg border border-slate-600/30 bg-slate-900/80">
@@ -98,13 +107,18 @@ function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
           <div className="h-4/5 w-4/5 rounded-full border-2 border-dashed border-sky-400/40" />
         </div>
       )}
-      <img
-        src={item.image}
-        alt={item.name}
-        draggable={false}
-        className={`h-full w-full object-contain p-1 select-none ${isCooling ? 'mix-blend-multiply' : ''
-          }`}
-      />
+
+      {isPSU ? (
+        <PowerSupplyAnimated src={item.image} alt={item.name} />
+      ) : (
+        <img
+          src={item.image}
+          alt={item.name}
+          draggable={false}
+          className={`h-full w-full object-contain p-1 select-none ${isCooling ? 'mix-blend-multiply' : ''}`}
+        />
+      )}
+
       <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
         <p className="truncate text-[8px] font-bold text-slate-200">{item.name}</p>
         <p className="text-[7px] uppercase tracking-wider text-slate-400">{item.condition}</p>
@@ -114,7 +128,7 @@ function ZoomSlot({ item }: { item: MockHardwarePiece | null }) {
 }
 
 // ── RackZoomGrid ──────────────────────────────────────────────────
-function RackZoomGrid() {
+function RackZoomGrid({ rackId }: { rackId: number }) {
   const { inventory } = useMockPlayerState()
 
   const hardwarePieces = useMemo(
@@ -123,84 +137,97 @@ function RackZoomGrid() {
   )
 
   const slotMap = useMemo(() => {
+    const r = `rack${rackId}`
     const map: Record<string, MockHardwarePiece | null> = {
-      'rack1-power1': null,
-      'rack1-power2': null,
-      'rack1-cable-kit1': null,
-      'rack1-cable-kit2': null,
-      'rack1-cooling1': null,
-      'rack1-cooling2': null,
-      'rack1-storage1': null,
-      'rack1-storage2': null,
+      [`${r}-power1`]: null,
+      [`${r}-power2`]: null,
+      [`${r}-cable-kit1`]: null,
+      [`${r}-cable-kit2`]: null,
+      [`${r}-cooling1`]: null,
+      [`${r}-cooling2`]: null,
+      [`${r}-storage1`]: null,
+      [`${r}-storage2`]: null,
     }
     for (let i = 1; i <= 6; i++) {
-      map[`rack1-mem${i}`] = null
-      map[`rack1-gpu${i}`] = null
+      map[`${r}-mem${i}`] = null
+      map[`${r}-gpu${i}`] = null
     }
     hardwarePieces.forEach((p) => {
       if (p.slot_id && p.slot_id in map) map[p.slot_id] = p
     })
     return map
-  }, [hardwarePieces])
+  }, [hardwarePieces, rackId])
 
   const g = (id: string) => slotMap[id] ?? null
+  const installedPieces = Object.values(slotMap).filter(
+    (p): p is MockHardwarePiece => p != null
+  )
 
+  const r = `rack${rackId}`
   const sections = [
     {
       label: 'Power System',
       color: 'text-amber-300/70',
-      slots: ['rack1-power1', 'rack1-power2'],
+      slots: [`${r}-power1`, `${r}-power2`],
       cols: 2,
     },
     {
       label: 'Power Cables',
       color: 'text-slate-300/70',
-      slots: ['rack1-cable-kit1', 'rack1-cable-kit2'],
+      slots: [`${r}-cable-kit1`, `${r}-cable-kit2`],
       cols: 2,
     },
     {
       label: 'Cooling System',
       color: 'text-sky-300/70',
-      slots: ['rack1-cooling1', 'rack1-cooling2'],
+      slots: [`${r}-cooling1`, `${r}-cooling2`],
       cols: 2,
     },
     {
       label: 'Storage Bay',
       color: 'text-emerald-300/70',
-      slots: ['rack1-storage1', 'rack1-storage2'],
+      slots: [`${r}-storage1`, `${r}-storage2`],
       cols: 2,
     },
     {
       label: 'Memory Bank',
       color: 'text-purple-300/70',
-      slots: ['rack1-mem1', 'rack1-mem2', 'rack1-mem3', 'rack1-mem4', 'rack1-mem5', 'rack1-mem6'],
+      slots: [`${r}-mem1`, `${r}-mem2`, `${r}-mem3`, `${r}-mem4`, `${r}-mem5`, `${r}-mem6`],
       cols: 3,
     },
     {
       label: 'GPU Array',
       color: 'text-cyan-300/70',
-      slots: ['rack1-gpu1', 'rack1-gpu2', 'rack1-gpu3', 'rack1-gpu4', 'rack1-gpu5', 'rack1-gpu6'],
+      slots: [`${r}-gpu1`, `${r}-gpu2`, `${r}-gpu3`, `${r}-gpu4`, `${r}-gpu5`, `${r}-gpu6`],
       cols: 3,
     },
   ]
 
   return (
-    <div className="flex flex-col gap-2">
-      {sections.map((section) => (
-        <div key={section.label}>
-          <p className={`mb-1 text-[8px] font-black uppercase tracking-[0.22em] ${section.color}`}>
-            {section.label}
-          </p>
-          <div
-            className="grid gap-1.5"
-            style={{ gridTemplateColumns: `repeat(${section.cols}, 1fr)` }}
-          >
-            {section.slots.map((id) => (
-              <ZoomSlot key={id} item={g(id)} />
-            ))}
+    <div className="flex gap-4">
+      <div className="w-44 shrink-0 self-start sticky top-0">
+        <RackStatusPanel
+          {...computeRackStatus(installedPieces)}
+          variant="compact"
+        />
+      </div>
+      <div className="flex flex-col gap-2 w-[320px] shrink-0">
+        {sections.map((section) => (
+          <div key={section.label}>
+            <p className={`mb-1 text-[8px] font-black uppercase tracking-[0.22em] ${section.color}`}>
+              {section.label}
+            </p>
+            <div
+              className="grid gap-1.5"
+              style={{ gridTemplateColumns: `repeat(${section.cols}, 1fr)` }}
+            >
+              {section.slots.map((id) => (
+                <ZoomSlot key={id} item={g(id)} />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
@@ -213,11 +240,16 @@ export default function DashboardPage({
   const [activeSection, setActiveSection] = useState(() =>
     resolveSectionFromPath(window.location.pathname),
   )
-  const [rackZoomed, setRackZoomed] = useState(false)
+  // null = ningún rack abierto; 1-4 = rack abierto
+  const [zoomedRackId, setZoomedRackId] = useState<number | null>(null)
 
   const { balance, inventory } = useMockPlayerState()
   const userEmail = session.email ?? 'Unknown user'
-  const isLaboratorySection = activeSection === 'laboratory' || activeSection === 'lab-duel' || activeSection === 'neural-link' || activeSection === 'packet-storm' || activeSection === 'net-rush'
+  const isLaboratorySection =
+    activeSection === 'laboratory' ||
+    activeSection === 'neural-link' ||
+    activeSection === 'packet-storm' ||
+    activeSection === 'net-rush'
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -227,7 +259,13 @@ export default function DashboardPage({
       )
       const canonicalPath = getCanonicalPath(nextSection)
       const normalizedPath = normalizePathname(window.location.pathname)
-      if (canonicalPath !== normalizedPath && nextSection !== 'games' && nextSection !== 'lab-duel' && nextSection !== 'neural-link' && nextSection !== 'packet-storm' && nextSection !== 'net-rush') {
+      if (
+        canonicalPath !== normalizedPath &&
+        nextSection !== 'games' &&
+        nextSection !== 'neural-link' &&
+        nextSection !== 'packet-storm' &&
+        nextSection !== 'net-rush'
+      ) {
         window.history.replaceState({}, '', canonicalPath)
       }
     }
@@ -349,33 +387,40 @@ export default function DashboardPage({
                     placement="bottom"
                   />
 
-                  {/* Área clickeable sobre RACK 01 — hover glow + cursor zoom */}
-                  <button
-                    type="button"
-                    onClick={() => setRackZoomed(true)}
-                    className="absolute z-40 cursor-zoom-in rounded-sm transition-all focus:outline-none hover:ring-2 hover:ring-cyan-400/50 hover:shadow-[0_0_24px_rgba(34,211,238,0.12)]"
-                    style={{ left: '26.5%', top: '31%', width: '10%', height: '38%' }}
-                    aria-label="Ver RACK 01 en detalle"
-                  />
+                  {/* ── Botones invisibles sobre cada rack ── */}
+                  {rackZoomButtons.map((btn) => (
+                    <button
+                      key={btn.id}
+                      type="button"
+                      onClick={() => setZoomedRackId(btn.id)}
+                      className="absolute z-40 cursor-zoom-in rounded-sm transition-all focus:outline-none hover:ring-2 hover:ring-cyan-400/50 hover:shadow-[0_0_24px_rgba(34,211,238,0.12)]"
+                      style={{
+                        left: btn.left,
+                        top: btn.top,
+                        width: btn.width,
+                        height: btn.height,
+                      }}
+                      aria-label={`Ver RACK 0${btn.id} en detalle`}
+                    />
+                  ))}
                 </div>
 
                 {/* ── Modal de zoom del rack ── */}
-                {rackZoomed && (
+                {zoomedRackId !== null && (
                   <div
                     className="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-black/75 backdrop-blur-sm"
-                    onClick={() => setRackZoomed(false)}
+                    onClick={() => setZoomedRackId(null)}
                   >
                     <div
                       className="custom-scrollbar relative overflow-y-auto rounded-2xl border border-cyan-400/20 bg-slate-950 p-4 shadow-[0_0_60px_rgba(34,211,238,0.15)]"
-                      style={{ width: '340px', maxHeight: '90%' }}
+                      style={{ width: '600px', maxHeight: '90%' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {/* Header */}
                       <div className="mb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]" />
                           <span className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-100">
-                            RACK 01
+                            RACK 0{zoomedRackId}
                           </span>
                           <span className="rounded-full border border-emerald-300/40 bg-emerald-400/10 px-2 py-[2px] text-[8px] font-black uppercase tracking-widest text-emerald-200">
                             ACTIVE
@@ -383,18 +428,16 @@ export default function DashboardPage({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setRackZoomed(false)}
+                          onClick={() => setZoomedRackId(null)}
                           className="text-lg leading-none text-slate-500 transition-colors hover:text-slate-200"
                         >
                           ✕
                         </button>
                       </div>
-
-                      <RackZoomGrid />
+                      <RackZoomGrid rackId={zoomedRackId} />
                     </div>
                   </div>
                 )}
-
               </div>
 
               <GarageRoomIndicators
@@ -418,26 +461,24 @@ export default function DashboardPage({
               }}
             />
           )}
-          {activeSection === 'lab-duel' && (
-            <LabDuelArena
-              onExit={() => {
-                startTransition(() => setActiveSection('games'))
-                window.history.pushState({}, '', '/games')
-              }}
-            />
+          {activeSection === 'neural-link' && (
+            <NeuralLink onExit={() => {
+              startTransition(() => setActiveSection('games'))
+              window.history.pushState({}, '', '/games')
+            }} />
           )}
-          {activeSection === 'neural-link' && <NeuralLink onExit={() => {
-            startTransition(() => setActiveSection('games'))
-            window.history.pushState({}, '', '/games')
-          }} />}
-          {activeSection === 'packet-storm' && <PacketStorm onExit={() => {
-            startTransition(() => setActiveSection('games'))
-            window.history.pushState({}, '', '/games')
-          }} />}
-          {activeSection === 'net-rush' && <NetRush onExit={() => {
-            startTransition(() => setActiveSection('games'))
-            window.history.pushState({}, '', '/games')
-          }} />}
+          {activeSection === 'packet-storm' && (
+            <PacketStorm onExit={() => {
+              startTransition(() => setActiveSection('games'))
+              window.history.pushState({}, '', '/games')
+            }} />
+          )}
+          {activeSection === 'net-rush' && (
+            <NetRush onExit={() => {
+              startTransition(() => setActiveSection('games'))
+              window.history.pushState({}, '', '/games')
+            }} />
+          )}
         </div>
       </DashboardLayout>
     </div>

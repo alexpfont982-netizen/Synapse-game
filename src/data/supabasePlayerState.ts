@@ -12,30 +12,63 @@ const _imageMap = new Map(
 )
 import type { StoreItemCondition, StoreProductCategory } from '../types/store'
 
-// ── Tipos (compatibles con mockPlayerState) ───────────────────────
+// ── Tipos ─────────────────────────────────────────────────────────
 
 export type MockHardwareType =
   | 'GPU' | 'MEMORY' | 'STORAGE' | 'POWER_UNIT'
   | 'CABLE_KIT' | 'COOLING' | 'ROOM_FAN' | 'ROOM_EXTRACTOR'
 
 export type MockHardwareStats = {
+  // Legacy (rack status engine)
   tflops: number
   power:  number
   heat:   number
+  // Compartidas
+  stability?:     number
+  temperature_c?: number
+  failure_risk?:  number
+  boost?:         string
+  penalty?:       string
+  // PSU
+  power_w?:           number
+  avg_consumption_w?: number
+  performance?:       number
+  // GPU
+  ai_output?:           number
+  vram_gb?:             number
+  power_consumption_w?: number
+  // Memory
+  processing_speed?: number
+  capacity_gb?:      number
+  memory_type?:      string
+  // Storage
+  read_speed?:   number
+  storage_type?: string
+ capacity?:     number
+  // Cable
+  stability_bonus?:   number
+  power_support?:     string
+  cable_type?:        string
+  temperature_bonus?: string
+  // Cooling
+  cooling_power?:         number
+  temperature_reduction?: string
+  cooling_type?:          string
+  noise_level?:           string
 }
 
 export type MockPlayerInventoryItem = {
-  inventory_id:   string
-  item_id:        string
-  brand:          string
-  model:          string
-  category:       StoreProductCategory
-  condition:      StoreItemCondition
-  price:          number
-  image_path:     string
-  image:          string
-  purchased_at:   string
-  slot_id:        string | null
+  inventory_id: string
+  item_id:      string
+  brand:        string
+  model:        string
+  category:     StoreProductCategory
+  condition:    StoreItemCondition
+  price:        number
+  image_path:   string
+  image:        string
+  purchased_at: string
+  slot_id:      string | null
   _catalogStats?: Record<string, unknown>
 }
 
@@ -79,40 +112,114 @@ function getHardwareType(category: StoreProductCategory): MockHardwareType {
   }
 }
 
+// Lee los stats directamente del campo stats (JSONB) de Supabase
+// junto con boost y penalty que son columnas separadas
 function getStatsFromCatalog(
-  stats: Record<string, unknown>,
+  catalogStats: Record<string, unknown>,
   category: StoreProductCategory,
 ): MockHardwareStats {
-  const s = stats as Record<string, number>
+  const s = catalogStats
+
+  const n = (key: string) => s[key] !== undefined ? Number(s[key]) : undefined
+  const str = (key: string) => s[key] !== undefined ? String(s[key]) : undefined
+
   switch (category) {
     case 'power_supply':
-      return { tflops: 0, power: s.avg_consumption_w ?? 0, heat: Math.max(0, (s.temperature_c ?? 20) - 20) }
+      return {
+        tflops: 0,
+        power:  n('avg_consumption_w') ?? 0,
+        heat:   Math.max(0, (n('temperature_c') ?? 20) - 20),
+        stability:         n('stability'),
+        temperature_c:     n('temperature_c'),
+        failure_risk:      n('failure_risk'),
+        boost:             str('boost'),
+        penalty:           str('penalty'),
+        power_w:           n('power_w'),
+        avg_consumption_w: n('avg_consumption_w'),
+        performance:       n('performance'),
+      }
     case 'gpu':
-      return { tflops: Math.max(0.1, (s.ai_output ?? 0) / 10), power: s.power_consumption_w ?? 0, heat: Math.max(0, (s.temperature_c ?? 18) - 18) }
+      return {
+        tflops: Math.max(0.1, (n('ai_output') ?? 0) / 10),
+        power:  n('power_consumption_w') ?? 0,
+        heat:   Math.max(0, (n('temperature_c') ?? 18) - 18),
+        stability:           n('stability'),
+        temperature_c:       n('temperature_c'),
+        failure_risk:        n('failure_risk'),
+        boost:               str('boost'),
+        penalty:             str('penalty'),
+        ai_output:           n('ai_output'),
+        vram_gb:             n('vram_gb'),
+        power_consumption_w: n('power_consumption_w'),
+      }
     case 'memory':
+      return {
+        tflops: 0,
+        power:  0,
+        heat:   Math.max(0, (n('temperature_c') ?? 18) - 18),
+        stability:        n('stability'),
+        temperature_c:    n('temperature_c'),
+        failure_risk:     n('failure_risk'),
+        boost:            str('boost'),
+        penalty:          str('penalty'),
+        processing_speed: n('processing_speed'),
+        capacity_gb:      n('capacity_gb'),
+        memory_type:      str('memory_type'),
+      }
     case 'storage':
-      return { tflops: 0, power: 0, heat: Math.max(0, (s.temperature_c ?? 18) - 18) }
+      return {
+        tflops: 0,
+        power:  0,
+        heat:   Math.max(0, (n('temperature_c') ?? 18) - 18),
+        stability:     n('stability'),
+        temperature_c: n('temperature_c'),
+        failure_risk:  n('failure_risk'),
+        boost:         str('boost'),
+        penalty:       str('penalty'),
+        read_speed:    n('read_speed'),
+        storage_type:  str('storage_type'),
+        capacity:      s['capacity'] !== undefined ? parseSignedNumber(String(s['capacity'])) : undefined,
+      }
     case 'power_cable':
-      return { tflops: 0, power: 0, heat: 0 }
+      return {
+        tflops: 0,
+        power:  0,
+        heat:   0,
+        boost:            str('boost'),
+        penalty:          str('penalty'),
+        stability_bonus:  n('stability_bonus'),
+        power_support:    str('power_support'),
+        cable_type:       str('cable_type'),
+        temperature_bonus: str('temperature_bonus'),
+      }
     case 'cooling':
-      return { tflops: 0, power: 0, heat: -Math.abs(parseSignedNumber(String(stats.temperature_reduction ?? '-0'))) }
+      return {
+        tflops: 0,
+        power:  0,
+        heat:   -Math.abs(parseSignedNumber(str('temperature_reduction') ?? '-0')),
+        boost:                str('boost'),
+        penalty:              str('penalty'),
+        cooling_power:        n('cooling_power'),
+        temperature_reduction: str('temperature_reduction'),
+        cooling_type:         str('cooling_type'),
+        noise_level:          str('noise_level'),
+        stability_bonus:      n('stability_bonus'),
+      }
     default:
       return { tflops: 0, power: 0, heat: 0 }
   }
 }
 
-// ── Carga el estado desde Supabase (sin JOINs, sin real-time) ────
+// ── Carga el estado desde Supabase ────────────────────────────────
 
 async function fetchPlayerState(): Promise<{ balance: number; inventory: MockPlayerInventoryItem[] }> {
   try {
-    // 1. Balance
     const { data: economy } = await supabase
       .from('user_economy')
       .select('ncr_balance')
       .eq('id', PLAYER_ID)
       .single()
 
-    // 2. Hardware del jugador
     const { data: hardware, error: hwError } = await supabase
       .from('user_hardware')
       .select('id, item_id, condition, price, purchased_at, slot_id, name, type')
@@ -130,21 +237,28 @@ async function fetchPlayerState(): Promise<{ balance: number; inventory: MockPla
       return { balance: Number(economy?.ncr_balance ?? 0), inventory: [] }
     }
 
-    // 3. Catálogo para esas piezas
+    // Solo pedimos las columnas que realmente existen en la tabla
     const { data: catalog } = await supabase
       .from('components_catalog')
-      .select('item_id, brand, model, category, condition, price, image_path, stats')
+      .select('item_id, brand, model, category, condition, price, image_path, stats, boost, penalty')
       .in('item_id', itemIds)
 
     const catalogMap = new Map(
       ((catalog ?? []) as Record<string, unknown>[]).map(c => [c.item_id as string, c])
     )
 
-    // 4. Construir inventario
     const inventory: MockPlayerInventoryItem[] = rows
       .map(row => {
         const cat = catalogMap.get(row.item_id as string)
         if (!cat) return null
+
+        // Las stats vienen del campo JSONB 'stats' + boost y penalty como columnas separadas
+        const catalogStats: Record<string, unknown> = {
+          ...((cat.stats as Record<string, unknown>) ?? {}),
+          boost:   cat.boost,
+          penalty: cat.penalty,
+        }
+
         return {
           inventory_id:  String(row.id),
           item_id:       String(row.item_id),
@@ -154,10 +268,10 @@ async function fetchPlayerState(): Promise<{ balance: number; inventory: MockPla
           condition:     (row.condition ?? cat.condition ?? 'Used') as StoreItemCondition,
           price:         Number(row.price ?? cat.price ?? 0),
           image_path:    String(cat.image_path ?? ''),
-        image: _imageMap.get(String(row.item_id)) ?? String(cat.image_path ?? ''),
+          image:         _imageMap.get(String(row.item_id)) ?? String(cat.image_path ?? ''),
           purchased_at:  String(row.purchased_at ?? new Date().toISOString()),
           slot_id:       typeof row.slot_id === 'string' ? row.slot_id : null,
-          _catalogStats: cat.stats as Record<string, unknown>,
+          _catalogStats: catalogStats,
         } satisfies MockPlayerInventoryItem
       })
       .filter(Boolean) as MockPlayerInventoryItem[]
@@ -210,7 +324,7 @@ export function selectMockHardwarePieces(
   }))
 }
 
-// ── purchaseStoreItem (async) ─────────────────────────────────────
+// ── purchaseStoreItem ─────────────────────────────────────────────
 
 export async function purchaseStoreItem(product: {
   item_id:    string
@@ -264,7 +378,7 @@ export async function purchaseStoreItem(product: {
     brand:         product.brand,
     model:         product.model,
     category:      product.category,
-    condition:     product.condition,
+    condition:      product.condition,
     price:         product.price,
     image_path:    product.image_path,
     image:         product.image,
@@ -276,7 +390,7 @@ export async function purchaseStoreItem(product: {
   return { ok: true, entry }
 }
 
-// ── updateInventoryItemSlot (async) ───────────────────────────────
+// ── updateInventoryItemSlot ───────────────────────────────────────
 
 export async function updateInventoryItemSlot(
   inventoryId: string,

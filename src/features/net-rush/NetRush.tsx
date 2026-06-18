@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import carBlueImg   from '../../assets/sprites/car_blue_1.png'
+import carRedImg    from '../../assets/sprites/car_red_1.png'
+import carYellowImg from '../../assets/sprites/car_yellow_1.png'
+import carGreenImg  from '../../assets/sprites/car_green_1.png'
 
 /* ============================================================
    SYNAPSE · NET RUSH
@@ -109,72 +113,80 @@ function freshGS(level: LevelDef): GameState {
 }
 
 /* ---- Visual components ---- */
+const RIVAL_SPRITES: Record<string, string> = {
+  '#FF5C8A': carRedImg,
+  '#FFD24A': carYellowImg,
+  '#FF7A45': carGreenImg,
+}
+
 function PlayerPod({ lane, latency, boosting, hitFlash }: {
   lane: number; latency: number; boosting: boolean; hitFlash: number
 }) {
   const x = LANE_X[lane]
-  const color = latency > 0 ? '#F5A524' : boosting ? '#00FFE0' : '#2DE2C5'
+  const glowColor = latency > 0 ? '#F5A524' : boosting ? '#00FFE0' : '#2DE2C5'
   return (
     <div style={{ position:'absolute', left:`${x}%`, top:`${PLAYER_Y}%`, transform:'translate(-50%,-50%)', zIndex:10 }}>
+      {/* boost trail */}
       {boosting && (
         <div style={{
-          position:'absolute', left:'50%', bottom:-8, transform:'translateX(-50%)',
-          width:8, height:22, borderRadius:4,
-          background:'linear-gradient(to bottom, #00FFE0AA, transparent)', filter:'blur(3px)',
+          position:'absolute', left:'50%', bottom:-10, transform:'translateX(-50%)',
+          width:10, height:26, borderRadius:5,
+          background:'linear-gradient(to bottom, #00FFE0AA, transparent)', filter:'blur(4px)',
         }} />
       )}
+      {/* hit flash */}
       {hitFlash > 0 && (
         <div style={{
-          position:'absolute', inset:-14, borderRadius:'50%',
+          position:'absolute', inset:-16, borderRadius:'50%',
           background:'radial-gradient(circle, #FF220055, transparent 70%)', opacity:hitFlash,
         }} />
       )}
-      <svg viewBox="0 0 28 44" width="28" height="44">
-        <defs>
-          <linearGradient id="nrPod" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0"   stopColor={color} />
-            <stop offset="0.5" stopColor="#0A1828" />
-            <stop offset="1"   stopColor="#050C14" />
-          </linearGradient>
-          <radialGradient id="nrGlow" cx="0.5" cy="0.35" r="0.6">
-            <stop offset="0" stopColor={color} stopOpacity="0.9" />
-            <stop offset="1" stopColor={color} stopOpacity="0"   />
-          </radialGradient>
-        </defs>
-        <path d="M14,2 C19,2 22,7 22,14 L22,34 C22,40 19,42 14,42 C9,42 6,40 6,34 L6,14 C6,7 9,2 14,2 Z"
-          fill="url(#nrPod)" stroke={color} strokeWidth="1" strokeOpacity="0.8" />
-        <ellipse cx="14" cy="10" rx="4"   ry="5.5" fill="url(#nrGlow)" />
-        <ellipse cx="13" cy="8"  rx="1.5" ry="2.5" fill="#FFFFFF" opacity="0.6" />
-        <path d="M6,22 L1,30 L6,32 Z"   fill={color} opacity="0.6" />
-        <path d="M22,22 L27,30 L22,32 Z" fill={color} opacity="0.6" />
-        <ellipse cx="14" cy="40" rx="4.5" ry="2.5" fill={color} opacity="0.4" />
-      </svg>
+      {/* glow under car */}
+      <div style={{
+        position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)',
+        width:44, height:44, borderRadius:'50%',
+        background:`radial-gradient(circle, ${glowColor}33, transparent 70%)`,
+        filter:'blur(6px)',
+      }} />
+      <img
+        src={carBlueImg}
+        alt="player pod"
+        draggable={false}
+        style={{
+          width:40, height:40, objectFit:'contain', imageRendering:'pixelated', display:'block',
+          filter: latency > 0
+            ? 'hue-rotate(30deg) saturate(2) drop-shadow(0 0 5px #F5A524)'
+            : `drop-shadow(0 0 4px ${glowColor}88)`,
+        }}
+      />
     </div>
   )
 }
 
 function RivalPod({ x, y, color }: { x: number; y: number; color: string }) {
-  const gradId = `rg-${color.replace('#','')}`
+  const sprite = RIVAL_SPRITES[color] ?? carRedImg
   return (
     <div style={{
       position:'absolute', left:`${x}%`, top:`${y}%`,
       transform:'translate(-50%,-50%)',
-      opacity: y < 0 || y > 105 ? 0 : 1, transition:'opacity 200ms',
+      opacity: y < -5 || y > 108 ? 0 : 1, transition:'opacity 200ms',
     }}>
-      <svg viewBox="0 0 24 38" width="24" height="38">
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0"   stopColor={color} />
-            <stop offset="0.6" stopColor="#0A0F1A" />
-            <stop offset="1"   stopColor="#050810" />
-          </linearGradient>
-        </defs>
-        <path d="M12,2 C16,2 18,6 18,12 L18,30 C18,35 16,36 12,36 C8,36 6,35 6,30 L6,12 C6,6 8,2 12,2 Z"
-          fill={`url(#${gradId})`} stroke={color} strokeWidth="0.8" strokeOpacity="0.7" />
-        <ellipse cx="12" cy="9" rx="3" ry="4" fill={color} opacity="0.35" />
-        <path d="M6,20 L2,27 L6,29 Z"   fill={color} opacity="0.5" />
-        <path d="M18,20 L22,27 L18,29 Z" fill={color} opacity="0.5" />
-      </svg>
+      {/* color glow */}
+      <div style={{
+        position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)',
+        width:38, height:38, borderRadius:'50%',
+        background:`radial-gradient(circle, ${color}22, transparent 70%)`,
+        filter:'blur(5px)',
+      }} />
+      <img
+        src={sprite}
+        alt="rival"
+        draggable={false}
+        style={{
+          width:34, height:34, objectFit:'contain', imageRendering:'pixelated', display:'block',
+          filter:`drop-shadow(0 0 3px ${color}77)`,
+        }}
+      />
     </div>
   )
 }
