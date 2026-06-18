@@ -26,6 +26,7 @@ import {
   selectMockHardwarePieces,
   useMockPlayerState,
   type MockHardwarePiece,
+  useRackBuffs,
 } from '../../data/supabasePlayerState'
 import RackStatusPanel from './components/RackStatusPanel';
 import { computeRackStatus } from './utils/computeRackStatus';
@@ -162,7 +163,9 @@ function RackZoomGrid({ rackId }: { rackId: number }) {
   const installedPieces = Object.values(slotMap).filter(
     (p): p is MockHardwarePiece => p != null
   )
-
+ const installedItemIds = installedPieces.map(p => p.item_id)
+console.log('installedItemIds:', installedItemIds)
+const rackBuffs = useRackBuffs(installedItemIds)
   const r = `rack${rackId}`
   const sections = [
     {
@@ -208,6 +211,7 @@ function RackZoomGrid({ rackId }: { rackId: number }) {
       <div className="w-44 shrink-0 self-start sticky top-0">
         <RackStatusPanel
           {...computeRackStatus(installedPieces)}
+          buffs={rackBuffs.buffs}
           variant="compact"
         />
       </div>

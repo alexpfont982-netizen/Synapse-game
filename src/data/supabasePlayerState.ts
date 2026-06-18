@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { garageInventory } from './garageInventory'
 
+
 const _imageMap = new Map(
   garageInventory.map(item => [item.item_id, item.image] as const)
 )
@@ -74,6 +75,7 @@ export type MockPlayerInventoryItem = {
 
 export type MockHardwarePiece = {
   id:           string
+  item_id:      string
   type:         MockHardwareType
   name:         string
   brand:        string
@@ -309,6 +311,7 @@ export function selectMockHardwarePieces(
 ): MockHardwarePiece[] {
   return inventory.map(item => ({
     id:           item.inventory_id,
+    item_id:      item.item_id, 
     type:         getHardwareType(item.category),
     name:         `${item.brand} ${item.model}`.trim(),
     brand:        item.brand,
@@ -413,6 +416,7 @@ export function useRackBuffs(installedItemIds: string[]) {
   }>>([])
 
   useEffect(() => {
+    console.log('useRackBuffs - installedItemIds:', installedItemIds)
     if (installedItemIds.length < 2) { setBuffs([]); return }
 
     supabase
@@ -420,7 +424,11 @@ export function useRackBuffs(installedItemIds: string[]) {
       .select('item_a, item_b, effect_type, effect_value, description')
       .in('item_a', installedItemIds)
       .in('item_b', installedItemIds)
-      .then(({ data }) => setBuffs(data ?? []))
+      .then(({ data, error }) => {
+        console.log('component_interactions data:', data)
+        console.log('component_interactions error:', error)
+        setBuffs(data ?? [])
+      })
   }, [JSON.stringify([...installedItemIds].sort())])
 
   return {
