@@ -1,10 +1,10 @@
-
-
 import { useMemo } from 'react'
 import rack01Empty from '../../../assets/dashboard/rack-front-empty-level1.png'
 import {
   selectMockHardwarePieces,
+  useConditionalEffects,
   type MockHardwarePiece,
+  type RackRuntimeStats,
   useMockPlayerState,
 } from '../../../data/supabasePlayerState'
 
@@ -139,14 +139,24 @@ function getStatusClasses(status: RackStatus) {
   }
 }
 
+// ── GarageSlotView ────────────────────────────────────────────────
+// El borde de cada slot ahora refleja el estado REAL de esa pieza:
+// - VERDE:        solo boost activo (rinde bien)
+// - ROJO:         solo penalty activo (fuera de rango seguro)
+// - ROJO/VERDE:   boost Y penalty activos a la vez (mitad izq. roja, mitad der. verde)
+// - AMARILLO:     sin efectos activos, pero hay un penalty potencial (warning)
+// - NEUTRO:       sin ningún efecto ni warning en este momento
+
 function GarageSlotView({
   item,
-  isCritical,
-  isOverheating,
+  hasPenalty,
+  hasBoost,
+  hasWarning,
 }: {
   item: MockHardwarePiece | null
-  isCritical: boolean
-  isOverheating: boolean
+  hasPenalty: boolean
+  hasBoost: boolean
+  hasWarning: boolean
 }) {
   if (!item) {
     return (
@@ -160,15 +170,27 @@ function GarageSlotView({
   const ledColor = typeLed[item.type]
   const glowColor = typeGlow[item.type]
 
-  return (
-    <div
-      className={`relative flex-1 min-w-0 overflow-hidden rounded-[2px] border bg-slate-900/80 ${
-        isCritical
-          ? 'border-red-500/60 shadow-[0_0_6px_rgba(239,68,68,0.4)]'
+  // 5 estados posibles, en orden de prioridad:
+  const isMixed = hasPenalty && hasBoost   // rojo/verde, mitad y mitad
+  const isPenaltyOnly = hasPenalty && !hasBoost
+  const isBoostOnly   = hasBoost && !hasPenalty
+  const isWarningOnly = hasWarning && !hasPenalty && !hasBoost
+
+  const borderClass = isMixed
+    ? 'border-white/30'
+    : isPenaltyOnly
+      ? 'border-red-500/60 shadow-[0_0_6px_rgba(239,68,68,0.4)]'
+      : isBoostOnly
+        ? 'border-emerald-500/60 shadow-[0_0_6px_rgba(16,185,129,0.4)]'
+        : isWarningOnly
+          ? 'border-amber-400/50 shadow-[0_0_6px_rgba(251,191,36,0.35)]'
           : isGpu
             ? 'border-cyan-500/25 shadow-[0_0_3px_rgba(34,211,238,0.2)]'
             : 'border-white/10'
-      }`}
+
+  return (
+    <div
+      className={`relative flex-1 min-w-0 overflow-hidden rounded-[2px] border bg-slate-900/80 ${borderClass}`}
     >
       {isCooling && (
         <>
@@ -202,7 +224,7 @@ function GarageSlotView({
           style={{
             filter: `brightness(0.9) contrast(1.1) saturate(0.95)${
               glowColor ? ` drop-shadow(0 0 2px ${glowColor})` : ''
-            }${isCritical ? ' sepia(0.4) saturate(1.5)' : ''}`,
+            }${isPenaltyOnly || isMixed ? ' sepia(0.4) saturate(1.5)' : ''}`,
           }}
         />
       )}
@@ -213,22 +235,175 @@ function GarageSlotView({
         />
       )}
 
-      {isCritical && (
+      {/* Overlay de color según estado — mitad/mitad cuando hay boost + penalty juntos */}
+      {isMixed ? (
+        <div className="pointer-events-none absolute inset-0 flex">
+          <div className="h-full w-1/2 animate-pulse bg-red-500/15" />
+          <div
+            className="h-full w-1/2 animate-pulse bg-emerald-500/[0.1]"
+            style={{ animationDuration: '3s' }}
+          />
+        </div>
+      ) : isPenaltyOnly ? (
         <div className="pointer-events-none absolute inset-0 animate-pulse bg-red-500/10" />
-      )}
-
-      {isOverheating && !isCritical && isGpu && (
+      ) : isBoostOnly ? (
         <div
-          className="pointer-events-none absolute inset-0 animate-pulse bg-amber-500/[0.07]"
+          className="pointer-events-none absolute inset-0 animate-pulse bg-emerald-500/[0.07]"
           style={{ animationDuration: '3s' }}
         />
-      )}
+      ) : isWarningOnly ? (
+        <div
+          className="pointer-events-none absolute inset-0 animate-pulse bg-amber-400/[0.08]"
+          style={{ animationDuration: '2.4s' }}
+        />
+      ) : null}
     </div>
   )
 }
 
-export function GarageRackOverlay() {
-  const { inventory } = useMockPlayerState()
+// ── RackInterior ──────────────────────────────────────────────────
+// Componente separado por rack para poder llamar useConditionalEffects
+// una vez por rack (cada uno tiene sus propios stats y piezas instaladas).
+
+function RackInteriorView({
+  rack,
+  interior,
+  slotMap,
+}: {
+  rack: RackItem
+  interior: RackInterior
+  slotMap: Record<string, MockHardwarePiece | null>
+}) {
+  const getSlotItem = (slotId: string) => slotMap[`rack${rack.id}-${slotId}`] ?? null
+
+  const installedPieces = useMemo(
+    () => Object.values(slotMap).filter((p): p is MockHardwarePiece => p != null),
+    [slotMap],
+  )
+  const installedItemIds = useMemo(
+    () => installedPieces.map((p) => p.item_id),
+    [installedPieces],
+  )
+
+  // Stats reales del rack para evaluar condiciones (mismo cálculo que computeRackStatus)
+  const rackStats: RackRuntimeStats = useMemo(() => {
+    let powerLoad = 0
+    let maxTemp = 0
+    let coolingOffset = 0
+    let stabilitySum = 0
+    let stabilityCount = 0
+
+    installedPieces.forEach((piece) => {
+      const s = piece.stats as unknown as Record<string, number> | undefined
+      if (s?.power) powerLoad += s.power
+
+      if (piece.type === 'COOLING') {
+        coolingOffset += Math.abs(s?.heat ?? 0)
+      } else {
+        const temp = s?.['temperature_c'] ?? s?.heat ?? 0
+        if (temp > maxTemp) maxTemp = temp
+      }
+
+      const stability = s?.['stability']
+      if (stability !== undefined) {
+        stabilitySum += stability
+        stabilityCount += 1
+      } else if (piece.condition) {
+        const base = piece.condition === 'New' ? 100 : piece.condition === 'Rebuilt' ? 88 : 74
+        stabilitySum += base
+        stabilityCount += 1
+      }
+    })
+
+    return {
+      temperature: Math.max(25, 25 + maxTemp - coolingOffset),
+      power_load: powerLoad,
+      stability: stabilityCount > 0 ? Math.round(stabilitySum / stabilityCount) : 100,
+    }
+  }, [installedPieces])
+
+  const { activeBoosts, activePenalties, potentialPenalties } = useConditionalEffects(installedItemIds, rackStats)
+
+  const boostItemIds   = useMemo(() => new Set(activeBoosts.map((e) => e.item_id)), [activeBoosts])
+  const penaltyItemIds = useMemo(() => new Set(activePenalties.map((e) => e.item_id)), [activePenalties])
+  const warningItemIds = useMemo(() => new Set(potentialPenalties.map((e) => e.item_id)), [potentialPenalties])
+
+  const slotProps = (slotId: string) => {
+    const item = getSlotItem(slotId)
+    const hasPenalty = item ? penaltyItemIds.has(item.item_id) : false
+    const hasBoost   = item ? boostItemIds.has(item.item_id)   : false
+    // El warning solo se muestra si la pieza NO tiene ya un penalty o boost activo
+    // (si ya está en rojo/verde/mitad-mitad, el warning no aporta info nueva)
+    const hasWarning = item && !hasPenalty && !hasBoost ? warningItemIds.has(item.item_id) : false
+    return { item, hasPenalty, hasBoost, hasWarning }
+  }
+
+  return (
+    <div
+      className="absolute overflow-hidden"
+      style={{
+        left: interior.left,
+        top: interior.top,
+        width: interior.width,
+        height: interior.height,
+        zIndex: 90,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0',
+        padding: '1%',
+      }}
+    >
+      <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
+        <GarageSlotView {...slotProps('power1')} />
+        <GarageSlotView {...slotProps('power2')} />
+      </div>
+
+      <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
+        <GarageSlotView {...slotProps('cable-kit1')} />
+        <GarageSlotView {...slotProps('cable-kit2')} />
+      </div>
+
+      <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
+        <GarageSlotView {...slotProps('cooling1')} />
+        <GarageSlotView {...slotProps('cooling2')} />
+      </div>
+
+      <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
+        <GarageSlotView {...slotProps('storage1')} />
+        <GarageSlotView {...slotProps('storage2')} />
+      </div>
+
+      <div
+        style={{
+          flex: '0 0 24%',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '0',
+        }}
+      >
+        {[1, 2, 3, 4, 5, 6].map((slotNumber) => (
+          <GarageSlotView key={`rack${rack.id}-mem${slotNumber}`} {...slotProps(`mem${slotNumber}`)} />
+        ))}
+      </div>
+
+      <div
+        style={{
+          flex: '0 0 24%',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '0',
+        }}
+      >
+        {[1, 2, 3, 4, 5, 6].map((slotNumber) => (
+          <GarageSlotView key={`rack${rack.id}-gpu${slotNumber}`} {...slotProps(`gpu${slotNumber}`)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function GarageRackOverlay({ userId }: { userId: string }) {
+  const { inventory } = useMockPlayerState(userId)
 
   const hardwarePieces = useMemo(
     () => selectMockHardwarePieces(inventory),
@@ -267,35 +442,21 @@ export function GarageRackOverlay() {
     return map
   }, [hardwarePieces])
 
-  const temperature = useMemo(() => {
-    let base = 22
-    let cool = 0
-
-    hardwarePieces
-      .filter((piece) => Boolean(piece.slot_id))
-      .forEach((piece) => {
-        const heat = piece.stats?.heat ?? 0
-
-        if (piece.type === 'COOLING') {
-          cool += Math.abs(heat)
-        } else {
-          base += Math.max(0, heat)
+  // Mapa de slots filtrado por rack, para pasarle a cada RackInteriorView
+  // solo lo que le corresponde a ese rack específico
+  const slotMapByRack = useMemo(() => {
+    const result: Record<number, Record<string, MockHardwarePiece | null>> = {}
+    racks.forEach((rack) => {
+      const rackSlots: Record<string, MockHardwarePiece | null> = {}
+      Object.keys(slotMap).forEach((key) => {
+        if (key.startsWith(`rack${rack.id}-`)) {
+          rackSlots[key] = slotMap[key]
         }
       })
-
-    return Math.max(20, base - cool)
-  }, [hardwarePieces])
-
-  const isCritical = temperature > 150
-  const isOverheating = temperature > 80
-
-  const getSlotItem = (rackId: number, slotId: string) =>
-    slotMap[`rack${rackId}-${slotId}`] ?? null
-
-  const slotProps = {
-    isCritical,
-    isOverheating,
-  }
+      result[rack.id] = rackSlots
+    })
+    return result
+  }, [slotMap])
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30">
@@ -342,102 +503,15 @@ export function GarageRackOverlay() {
               }}
             />
 
-            <div
-              className="absolute overflow-hidden"
-              style={{
-                left: interior.left,
-                top: interior.top,
-                width: interior.width,
-                height: interior.height,
-                zIndex: 90,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0',
-                padding: '1%',
-              }}
-            >
-              <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'power1')}
-                  {...slotProps}
-                />
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'power2')}
-                  {...slotProps}
-                />
-              </div>
-
-              <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'cable-kit1')}
-                  {...slotProps}
-                />
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'cable-kit2')}
-                  {...slotProps}
-                />
-              </div>
-
-              <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'cooling1')}
-                  {...slotProps}
-                />
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'cooling2')}
-                  {...slotProps}
-                />
-              </div>
-
-              <div style={{ flex: '0 0 11%', display: 'flex', gap: '0' }}>
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'storage1')}
-                  {...slotProps}
-                />
-                <GarageSlotView
-                  item={getSlotItem(rack.id, 'storage2')}
-                  {...slotProps}
-                />
-              </div>
-
-              <div
-                style={{
-                  flex: '0 0 24%',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '0',
-                }}
-              >
-                {[1, 2, 3, 4, 5, 6].map((slotNumber) => (
-                  <GarageSlotView
-                    key={`rack${rack.id}-mem${slotNumber}`}
-                    item={getSlotItem(rack.id, `mem${slotNumber}`)}
-                    {...slotProps}
-                  />
-                ))}
-              </div>
-
-              <div
-                style={{
-                  flex: '0 0 24%',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '0',
-                }}
-              >
-                {[1, 2, 3, 4, 5, 6].map((slotNumber) => (
-                  <GarageSlotView
-                    key={`rack${rack.id}-gpu${slotNumber}`}
-                    item={getSlotItem(rack.id, `gpu${slotNumber}`)}
-                    {...slotProps}
-                  />
-                ))}
-              </div>
-            </div>
+            <RackInteriorView
+              rack={rack}
+              interior={interior}
+              slotMap={slotMapByRack[rack.id]}
+            />
           </div>
         )
       })}
-        
+
     </div>
   )
 }

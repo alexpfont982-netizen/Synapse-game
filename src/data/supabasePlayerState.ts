@@ -94,7 +94,8 @@ type PurchaseResult =
   | { ok: true;  entry: MockPlayerInventoryItem }
   | { ok: false; reason: 'insufficient_balance' | 'error' }
 
-const PLAYER_ID = 'player-1'
+// PLAYER_ID fijo eliminado — ahora cada función recibe el userId real
+// del usuario autenticado (session.id desde App.tsx → DashboardPage → aquí)
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -214,18 +215,18 @@ function getStatsFromCatalog(
 
 // ── Carga el estado desde Supabase ────────────────────────────────
 
-async function fetchPlayerState(): Promise<{ balance: number; inventory: MockPlayerInventoryItem[] }> {
+async function fetchPlayerState(userId: string): Promise<{ balance: number; inventory: MockPlayerInventoryItem[] }> {
   try {
     const { data: economy } = await supabase
       .from('user_economy')
       .select('ncr_balance')
-      .eq('id', PLAYER_ID)
+      .eq('id', userId)
       .single()
 
     const { data: hardware, error: hwError } = await supabase
       .from('user_hardware')
       .select('id, item_id, condition, price, purchased_at, slot_id, name, type')
-      .eq('owner_id', PLAYER_ID)
+      .eq('owner_id', userId)
 
     if (hwError) {
       console.error('Error cargando user_hardware:', hwError)
@@ -287,17 +288,23 @@ async function fetchPlayerState(): Promise<{ balance: number; inventory: MockPla
 
 // ── useMockPlayerState ────────────────────────────────────────────
 
-export function useMockPlayerState() {
+export function useMockPlayerState(userId: string | null | undefined) {
   const [balance,   setBalance]   = useState(0)
   const [inventory, setInventory] = useState<MockPlayerInventoryItem[]>([])
   const [loading,   setLoading]   = useState(true)
 
   const refresh = useCallback(async () => {
-    const state = await fetchPlayerState()
+    if (!userId) {
+      setBalance(0)
+      setInventory([])
+      setLoading(false)
+      return
+    }
+    const state = await fetchPlayerState(userId)
     setBalance(state.balance)
     setInventory(state.inventory)
     setLoading(false)
-  }, [])
+  }, [userId])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -329,20 +336,23 @@ export function selectMockHardwarePieces(
 
 // ── purchaseStoreItem ─────────────────────────────────────────────
 
-export async function purchaseStoreItem(product: {
-  item_id:    string
-  brand:      string
-  model:      string
-  category:   StoreProductCategory
-  condition:  StoreItemCondition
-  price:      number
-  image_path: string
-  image:      string
-}): Promise<PurchaseResult> {
+export async function purchaseStoreItem(
+  userId: string,
+  product: {
+    item_id:    string
+    brand:      string
+    model:      string
+    category:   StoreProductCategory
+    condition:  StoreItemCondition
+    price:      number
+    image_path: string
+    image:      string
+  },
+): Promise<PurchaseResult> {
   const { data: economy } = await supabase
     .from('user_economy')
     .select('ncr_balance')
-    .eq('id', PLAYER_ID)
+    .eq('id', userId)
     .single()
 
   if (!economy || Number(economy.ncr_balance) < product.price) {
@@ -352,14 +362,14 @@ export async function purchaseStoreItem(product: {
   const { error: balanceError } = await supabase
     .from('user_economy')
     .update({ ncr_balance: Number(economy.ncr_balance) - product.price })
-    .eq('id', PLAYER_ID)
+    .eq('id', userId)
 
   if (balanceError) return { ok: false, reason: 'error' }
 
   const { data: newRow, error: insertError } = await supabase
     .from('user_hardware')
     .insert({
-      owner_id:     PLAYER_ID,
+      owner_id:     userId,
       item_id:      product.item_id,
       name:         `${product.brand} ${product.model}`,
       type:         getHardwareType(product.category),
@@ -416,7 +426,6 @@ export function useRackBuffs(installedItemIds: string[]) {
   }>>([])
 
   useEffect(() => {
-    console.log('useRackBuffs - installedItemIds:', installedItemIds)
     if (installedItemIds.length < 2) { setBuffs([]); return }
 
     supabase
@@ -425,8 +434,7 @@ export function useRackBuffs(installedItemIds: string[]) {
       .in('item_a', installedItemIds)
       .in('item_b', installedItemIds)
       .then(({ data, error }) => {
-        console.log('component_interactions data:', data)
-        console.log('component_interactions error:', error)
+        if (error) { console.error('useRackBuffs error:', error); return }
         setBuffs(data ?? [])
       })
   }, [JSON.stringify([...installedItemIds].sort())])
@@ -435,5 +443,418 @@ export function useRackBuffs(installedItemIds: string[]) {
     buffs,
     activeBoosts:    buffs.filter(b => b.effect_type === 'boost'),
     activePenalties: buffs.filter(b => b.effect_type === 'penalty'),
+  }
+}
+
+// ── useConditionalEffects ───────────────────────────────────────────
+
+// Tipos exportados para usar en RackStatusPanel
+export type ConditionalEffect = {
+  id: number
+  item_id: string
+  effect_type: 'boost' | 'penalty'
+  effect_label: string
+  stat_affected: 'stability' | 'temperature' | 'ai_output' | 'efficiency'
+  numeric_value: number
+  condition_stat: 'temperature' | 'power_load' | 'stability' | 'always'
+  condition_op: 'lt' | 'lte' | 'gt' | 'gte' | 'always'
+  condition_value: number | null
+  description: string
+  // Runtime: si la condición está activa ahora
+  active: boolean
+}
+
+// Stats actuales del rack necesarios para evaluar condiciones
+export type RackRuntimeStats = {
+  temperature: number   // °C neto del rack
+  power_load: number    // W totales
+  stability: number     // % calculado
+}
+
+// Evalúa si una condición se cumple dados los stats actuales
+function evaluateCondition(
+  effect: Omit<ConditionalEffect, 'active'>,
+  stats: RackRuntimeStats,
+): boolean {
+  if (effect.condition_op === 'always') return true
+  if (effect.condition_value === null) return false
+
+  const current = stats[effect.condition_stat as keyof RackRuntimeStats] ?? 0
+  const threshold = effect.condition_value
+
+  switch (effect.condition_op) {
+    case 'gt':  return current >  threshold
+    case 'gte': return current >= threshold
+    case 'lt':  return current <  threshold
+    case 'lte': return current <= threshold
+    default:    return false
+  }
+}
+
+// Hook: carga efectos condicionales de las piezas instaladas y los evalúa
+export function useConditionalEffects(
+  installedItemIds: string[],
+  rackStats: RackRuntimeStats,
+) {
+  const [effects, setEffects] = useState<ConditionalEffect[]>([])
+
+  useEffect(() => {
+    if (installedItemIds.length === 0) { setEffects([]); return }
+
+    supabase
+      .from('component_conditional_effects')
+      .select('*')
+      .in('item_id', installedItemIds)
+      .then(({ data, error }) => {
+        if (error) { console.error('useConditionalEffects error:', error); return }
+
+        const evaluated: ConditionalEffect[] = (data ?? []).map(row => ({
+          id:              row.id,
+          item_id:         row.item_id,
+          effect_type:     row.effect_type,
+          effect_label:    row.effect_label,
+          stat_affected:   row.stat_affected,
+          numeric_value:   Number(row.numeric_value),
+          condition_stat:  row.condition_stat,
+          condition_op:    row.condition_op,
+          condition_value: row.condition_value !== null ? Number(row.condition_value) : null,
+          description:     row.description,
+          active:          evaluateCondition(row, rackStats),
+        }))
+
+        setEffects(evaluated)
+      })
+  }, [
+    // Re-evalúa si cambian las piezas O si los stats cruzan un umbral
+    JSON.stringify([...installedItemIds].sort()),
+    // Discretizamos los stats para no re-renderizar en cada décima de grado
+    Math.floor(rackStats.temperature / 5),
+    Math.floor(rackStats.power_load / 50),
+    Math.floor(rackStats.stability / 5),
+  ])
+
+  return {
+    allEffects:        effects,
+    activeEffects:     effects.filter(e => e.active),
+    inactiveEffects:   effects.filter(e => !e.active),
+    activeBoosts:      effects.filter(e => e.active && e.effect_type === 'boost'),
+    activePenalties:   effects.filter(e => e.active && e.effect_type === 'penalty'),
+    // Útil para mostrar "potenciales" en el panel
+    potentialPenalties: effects.filter(e => !e.active && e.effect_type === 'penalty'),
+    potentialBoosts:    effects.filter(e => !e.active && e.effect_type === 'boost'),
+  }
+}
+
+// ── useRackTFlops ─────────────────────────────────────────────────
+// Hook que calcula los TFLOPS efectivos de UN rack usando el motor
+// iterativo (rackComputeEngine). A diferencia de useConditionalEffects
+// (que evalúa contra los stats YA calculados externamente), este hook
+// resuelve el sistema en cascada completo: parte de los stats base del
+// hardware instalado y converge iterando los efectos condicionales.
+
+import {
+  computeRackTFlops,
+  type RackPieceForCompute,
+  type RawConditionalEffect,
+  type RackComputeResult,
+} from '../features/dashboard/utils/rackComputeEngine'
+
+function pieceToComputeInput(piece: MockHardwarePiece): RackPieceForCompute {
+  const s = piece.stats as unknown as Record<string, number> | undefined
+  const stabilityFallback =
+    piece.condition === 'New' ? 100 : piece.condition === 'Rebuilt' ? 88 : 74
+
+  return {
+    item_id: piece.item_id,
+    type: piece.type,
+    base_ai_output: piece.type === 'GPU' ? (s?.['ai_output'] ?? 0) : 0,
+    base_power: s?.power ?? 0,
+    base_heat: piece.type === 'COOLING'
+      ? -(Math.abs(s?.heat ?? 0))
+      : (s?.['temperature_c'] ?? s?.heat ?? 0),
+    base_stability: s?.['stability'] ?? stabilityFallback,
+  }
+}
+
+// Combo entre piezas tal como lo devuelve useRackBuffs (component_interactions)
+type RackBuffEntry = {
+  item_a: string
+  item_b: string
+  effect_type: string
+  effect_value: string
+  description: string
+}
+
+export function useRackTFlops(
+  installedPieces: MockHardwarePiece[],
+  combos: RackBuffEntry[] = [],
+) {
+  const [result, setResult] = useState<RackComputeResult | null>(null)
+
+  const installedItemIds = installedPieces.map((p) => p.item_id)
+  const itemIdsKey = JSON.stringify([...installedItemIds].sort())
+  const combosKey = JSON.stringify(
+    combos.map((c) => `${c.item_a}-${c.item_b}-${c.effect_value}`).sort(),
+  )
+
+  useEffect(() => {
+    if (installedPieces.length === 0) {
+      setResult(null)
+      return
+    }
+
+    supabase
+      .from('component_conditional_effects')
+      .select('*')
+      .in('item_id', installedItemIds)
+      .then(({ data, error }) => {
+        if (error) { console.error('useRackTFlops error:', error); return }
+
+        const effects: RawConditionalEffect[] = (data ?? []).map((row) => ({
+          id:              row.id,
+          item_id:         row.item_id,
+          effect_type:     row.effect_type,
+          stat_affected:   row.stat_affected,
+          numeric_value:   Number(row.numeric_value),
+          condition_stat:  row.condition_stat,
+          condition_op:    row.condition_op,
+          condition_value: row.condition_value !== null ? Number(row.condition_value) : null,
+        }))
+
+        const pieces = installedPieces.map(pieceToComputeInput)
+        const comboEffects = combos.map((c) => ({
+          item_a: c.item_a,
+          item_b: c.item_b,
+          effect_type: c.effect_type as 'boost' | 'penalty',
+          effect_value: c.effect_value,
+        }))
+        const computed = computeRackTFlops(pieces, effects, comboEffects)
+        setResult(computed)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemIdsKey, combosKey])
+
+  return result
+}
+
+// ── usePlayerEnergy ───────────────────────────────────────────────
+// Lee la energía REAL del jugador desde player_energy (tabla actualizada
+// por el cron job process_energy_cycle cada 15 min en el servidor).
+// Solo lectura desde el cliente — la escritura es exclusiva del backend.
+
+export interface PlayerEnergy {
+  currentWh: number
+  maxWh: number
+  lastCycleAt: string
+}
+
+export function usePlayerEnergy(userId: string | null | undefined) {
+  const [energy, setEnergy] = useState<PlayerEnergy | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setEnergy(null)
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('player_energy')
+      .select('current_wh, max_wh, last_cycle_at')
+      .eq('user_id', userId)
+      .single()
+
+    if (error) {
+      console.error('usePlayerEnergy error:', error)
+      setLoading(false)
+      return
+    }
+
+    if (data) {
+      setEnergy({
+        currentWh:   Number(data.current_wh),
+        maxWh:       Number(data.max_wh),
+        lastCycleAt: data.last_cycle_at,
+      })
+    }
+    setLoading(false)
+  }, [userId])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // Refresco automático cada 15 minutos, sincronizado con el ciclo del
+  // cron job (process_energy_cycle) que corre en el servidor. Así el
+  // jugador ve su energía actualizada sin necesidad de recargar la página.
+  useEffect(() => {
+    if (!userId) return
+    const FIFTEEN_MINUTES_MS = 15 * 60 * 1000
+    const intervalId = setInterval(() => {
+      refresh()
+    }, FIFTEEN_MINUTES_MS)
+    return () => clearInterval(intervalId)
+  }, [userId, refresh])
+
+  return { energy, loading, refresh }
+}
+
+// ── Sistema de Baterías ──────────────────────────────────────────
+// Catálogo de baterías disponibles en el Store + inventario del
+// jugador (compradas pero no usadas) + acción de usar una batería.
+
+export interface BatteryCatalogItem {
+  itemId: string
+  name: string
+  whAmount: number
+  price: number
+  description: string
+}
+
+export interface UserBattery {
+  id: string
+  itemId: string
+  whAmount: number
+  source: 'store' | 'minigame'
+  acquiredAt: string
+  usedAt: string | null
+}
+
+// Catálogo: lectura pública, no depende del usuario
+export function useBatteryCatalog() {
+  const [catalog, setCatalog] = useState<BatteryCatalogItem[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('battery_catalog')
+      .select('item_id, name, wh_amount, price, description')
+      .order('wh_amount', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) { console.error('useBatteryCatalog error:', error); setLoading(false); return }
+        setCatalog(
+          (data ?? []).map((row) => ({
+            itemId: row.item_id,
+            name: row.name,
+            whAmount: Number(row.wh_amount),
+            price: row.price,
+            description: row.description ?? '',
+          })),
+        )
+        setLoading(false)
+      })
+  }, [])
+
+  return { catalog, loading }
+}
+
+// Inventario de baterías SIN usar del jugador
+export function useUserBatteries(userId: string | null | undefined) {
+  const [batteries, setBatteries] = useState<UserBattery[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setBatteries([])
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('user_batteries')
+      .select('id, item_id, wh_amount, source, acquired_at, used_at')
+      .eq('owner_id', userId)
+      .is('used_at', null)
+      .order('acquired_at', { ascending: false })
+
+    if (error) { console.error('useUserBatteries error:', error); setLoading(false); return }
+
+    setBatteries(
+      (data ?? []).map((row) => ({
+        id: row.id,
+        itemId: row.item_id,
+        whAmount: Number(row.wh_amount),
+        source: row.source,
+        acquiredAt: row.acquired_at,
+        usedAt: row.used_at,
+      })),
+    )
+    setLoading(false)
+  }, [userId])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  return { batteries, loading, refresh }
+}
+
+// Comprar una batería: descuenta NCR del balance, inserta en user_batteries
+export async function purchaseBattery(
+  userId: string,
+  battery: BatteryCatalogItem,
+): Promise<{ ok: true } | { ok: false; reason: 'insufficient_balance' | 'error' }> {
+  const { data: economy } = await supabase
+    .from('user_economy')
+    .select('ncr_balance')
+    .eq('id', userId)
+    .single()
+
+  if (!economy || Number(economy.ncr_balance) < battery.price) {
+    return { ok: false, reason: 'insufficient_balance' }
+  }
+
+  const { error: balanceError } = await supabase
+    .from('user_economy')
+    .update({ ncr_balance: Number(economy.ncr_balance) - battery.price })
+    .eq('id', userId)
+
+  if (balanceError) return { ok: false, reason: 'error' }
+
+  const { error: insertError } = await supabase
+    .from('user_batteries')
+    .insert({
+      owner_id:  userId,
+      item_id:   battery.itemId,
+      wh_amount: battery.whAmount,
+      source:    'store',
+    })
+
+  if (insertError) return { ok: false, reason: 'error' }
+
+  return { ok: true }
+}
+
+// Usar una batería: llama a la función segura use_battery() en Supabase,
+// que valida propiedad, evita doble uso, y aplica el tope duro de energía.
+export interface UseBatteryResult {
+  success: boolean
+  message: string
+  newCurrentWh: number | null
+  whAdded: number | null
+  whWasted: number | null
+}
+
+export async function useBattery(batteryId: string): Promise<UseBatteryResult> {
+  const { data, error } = await supabase
+    .rpc('use_battery', { p_battery_id: batteryId })
+    .single()
+
+  if (error || !data) {
+    console.error('useBattery error:', error)
+    return { success: false, message: 'Network error', newCurrentWh: null, whAdded: null, whWasted: null }
+  }
+
+  const row = data as {
+    success: boolean
+    message: string
+    new_current_wh: number | null
+    wh_added: number | null
+    wh_wasted: number | null
+  }
+
+  return {
+    success: row.success,
+    message: row.message,
+    newCurrentWh: row.new_current_wh !== null ? Number(row.new_current_wh) : null,
+    whAdded: row.wh_added !== null ? Number(row.wh_added) : null,
+    whWasted: row.wh_wasted !== null ? Number(row.wh_wasted) : null,
   }
 }

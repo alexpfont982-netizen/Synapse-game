@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ShieldCheck, ShoppingCart, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ShieldCheck, ShoppingCart, Zap, ChevronDown, TrendingUp, TrendingDown, BatteryCharging } from 'lucide-react'
 import {
   garageInventory,
   garageInventoryByCategory,
@@ -7,7 +7,11 @@ import {
 import {
   purchaseStoreItem,
   useMockPlayerState,
+  useBatteryCatalog,
+  purchaseBattery,
+  type BatteryCatalogItem,
 } from '../../../data/supabasePlayerState'
+import { supabase } from '../../../supabaseClient'
 import type {
   GarageInventoryItem,
   StoreItemCondition,
@@ -25,6 +29,61 @@ type PurchaseFeedback =
       text: string
     }
   | null
+
+// ── Efectos condicionales (component_conditional_effects) ──────────
+
+type ProductConditionalEffect = {
+  id: number
+  effect_type: 'boost' | 'penalty'
+  effect_label: string
+  stat_affected: string
+  condition_stat: string
+  condition_op: string
+  condition_value: number | null
+  description: string
+}
+
+function formatCondition(e: ProductConditionalEffect): string {
+  if (e.condition_op === 'always') return 'Always active'
+  const statLabel = e.condition_stat.replace('_', ' ')
+  const opLabel = e.condition_op === 'gt' ? '>' : e.condition_op === 'gte' ? '\u2265' : e.condition_op === 'lt' ? '<' : '\u2264'
+  return `When ${statLabel} ${opLabel} ${e.condition_value}`
+}
+
+// Hook simple: trae los efectos condicionales de UN item_id puntual.
+// Se usa solo cuando la tarjeta se expande (lazy), para no disparar
+// 57 queries a Supabase al cargar la página completa del Store.
+function useProductEffects(itemId: string, enabled: boolean) {
+  const [effects, setEffects] = useState<ProductConditionalEffect[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!enabled || effects !== null) return
+    setLoading(true)
+    supabase
+      .from('component_conditional_effects')
+      .select('*')
+      .eq('item_id', itemId)
+      .then(({ data, error }) => {
+        setLoading(false)
+        if (error) { console.error('useProductEffects error:', error); return }
+        setEffects(
+          (data ?? []).map((row) => ({
+            id: row.id,
+            effect_type: row.effect_type,
+            effect_label: row.effect_label,
+            stat_affected: row.stat_affected,
+            condition_stat: row.condition_stat,
+            condition_op: row.condition_op,
+            condition_value: row.condition_value !== null ? Number(row.condition_value) : null,
+            description: row.description,
+          })),
+        )
+      })
+  }, [enabled, itemId, effects])
+
+  return { effects, loading }
+}
 
 const storeTabs: Array<{
   id: StoreTabCategory
@@ -129,6 +188,72 @@ function getProductMetrics(product: GarageInventoryItem): StoreMetric[] {
   }
 }
 
+// ── Sección expandible de efectos condicionales ─────────────────────
+
+function ConditionalEffectsPanel({ itemId, expanded }: { itemId: string; expanded: boolean }) {
+  const { effects, loading } = useProductEffects(itemId, expanded)
+  const isCable = itemId.startsWith('cable_')
+
+  if (!expanded) return null
+
+  if (isCable) {
+    return (
+      <div className="mt-2 rounded-[16px] border border-white/8 bg-white/[0.02] px-3 py-3">
+        <p className="text-[11px] text-slate-500 italic">
+          Cables don't have rack-state conditional effects.
+        </p>
+      </div>
+    )
+  }
+
+  if (loading || effects === null) {
+    return (
+      <div className="mt-2 rounded-[16px] border border-white/8 bg-white/[0.02] px-3 py-3">
+        <p className="text-[11px] text-slate-500">Loading performance data…</p>
+      </div>
+    )
+  }
+
+  const boost = effects.find((e) => e.effect_type === 'boost')
+  const penalty = effects.find((e) => e.effect_type === 'penalty')
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {boost && (
+        <div className="rounded-[16px] border border-emerald-400/15 bg-emerald-500/[0.06] px-3 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-[11px] font-bold text-emerald-300">{boost.effect_label}</span>
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-emerald-200/60">{boost.description}</p>
+          <p className="mt-1 text-[9px] uppercase tracking-wide text-emerald-500/60">
+            {formatCondition(boost)}
+          </p>
+        </div>
+      )}
+
+      {penalty && (
+        <div className="rounded-[16px] border border-red-400/15 bg-red-500/[0.06] px-3 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+            <span className="text-[11px] font-bold text-red-300">{penalty.effect_label}</span>
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-red-200/60">{penalty.description}</p>
+          <p className="mt-1 text-[9px] uppercase tracking-wide text-red-500/60">
+            {formatCondition(penalty)}
+          </p>
+        </div>
+      )}
+
+      {!boost && !penalty && (
+        <div className="rounded-[16px] border border-white/8 bg-white/[0.02] px-3 py-3">
+          <p className="text-[11px] text-slate-500 italic">No conditional effects on record.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StoreProductCard({
   product,
   onBuy,
@@ -136,6 +261,7 @@ function StoreProductCard({
   product: GarageInventoryItem
   onBuy: (product: GarageInventoryItem) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   const isPowerCable = product.category === 'power_cable'
   const metrics = getProductMetrics(product)
   const topMetrics = metrics.slice(0, 2)
@@ -216,10 +342,24 @@ function StoreProductCard({
         ))}
       </div>
 
+      {/* ── Toggle: rendimiento condicional ─────────────────────── */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="mt-2 flex w-full items-center justify-between rounded-[14px] border border-white/8 bg-white/[0.02] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 transition hover:border-cyan-300/20 hover:text-cyan-200"
+      >
+        <span>Performance Conditions</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      <ConditionalEffectsPanel itemId={product.item_id} expanded={expanded} />
+
       <button
         type="button"
         onClick={() => onBuy(product)}
-        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-cyan-300/20 bg-[linear-gradient(90deg,rgba(12,20,34,0.96),rgba(19,33,61,0.94))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-50 transition hover:border-cyan-200/34 hover:shadow-[0_0_24px_rgba(34,211,238,0.16)]"
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-cyan-300/20 bg-[linear-gradient(90deg,rgba(12,20,34,0.96),rgba(19,33,61,0.94))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-50 transition hover:border-cyan-200/34 hover:shadow-[0_0_24px_rgba(34,211,238,0.16)]"
       >
         <ShoppingCart className="h-4 w-4" />
         Buy
@@ -228,11 +368,66 @@ function StoreProductCard({
   )
 }
 
-export function StorePage() {
+// ── Tarjeta de batería ───────────────────────────────────────────
+
+function BatteryProductCard({
+  battery,
+  onBuy,
+}: {
+  battery: BatteryCatalogItem
+  onBuy: (battery: BatteryCatalogItem) => void
+}) {
+  return (
+    <article className="surface-panel rounded-[22px] p-3 sm:p-4">
+      <div className="flex h-[150px] items-center justify-center overflow-hidden rounded-[20px] border border-white/8 bg-[radial-gradient(circle_at_top,rgba(52,211,153,0.14),transparent_45%),linear-gradient(180deg,rgba(2,6,23,0.98),rgba(15,23,42,0.92))]">
+        <BatteryCharging className="h-16 w-16 text-emerald-300/70" strokeWidth={1.5} />
+      </div>
+
+      <div className="mt-3 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="font-display text-xl tracking-[0.08em] text-white">
+            {battery.name}
+          </h2>
+          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300/70">
+            +{Math.round(battery.whAmount).toLocaleString()} Wh
+          </p>
+        </div>
+
+        <div className="text-right">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+            Price
+          </p>
+          <p className="mt-1 text-lg font-semibold text-emerald-300">
+            {battery.price.toLocaleString()} NCR
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+        {battery.description}
+      </p>
+
+      <button
+        type="button"
+        onClick={() => onBuy(battery)}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/20 bg-[linear-gradient(90deg,rgba(6,34,28,0.96),rgba(12,46,38,0.94))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-emerald-50 transition hover:border-emerald-200/34 hover:shadow-[0_0_24px_rgba(52,211,153,0.16)]"
+      >
+        <BatteryCharging className="h-4 w-4" />
+        Buy
+      </button>
+    </article>
+  )
+}
+
+interface StorePageProps {
+  userId: string
+}
+
+export function StorePage({ userId }: StorePageProps) {
   const [activeTab, setActiveTab] = useState<StoreTabCategory>('all_items')
   const [purchaseFeedback, setPurchaseFeedback] =
     useState<PurchaseFeedback>(null)
-  const { balance, inventory, refresh } = useMockPlayerState()
+  const { balance, inventory, refresh } = useMockPlayerState(userId)
 
   const activeTabMeta =
     storeTabs.find((tab) => tab.id === activeTab) ?? storeTabs[0]
@@ -242,7 +437,7 @@ export function StorePage() {
       : garageInventoryByCategory[activeTab]
 
   const handleBuy = async (product: GarageInventoryItem) => {
-  const result = await purchaseStoreItem(product)
+  const result = await purchaseStoreItem(userId, product)
   if (!result.ok) {
     setPurchaseFeedback({ tone: 'error', text: 'Insufficient NCR balance.' })
     return
@@ -251,7 +446,17 @@ export function StorePage() {
   setPurchaseFeedback({ tone: 'success', text: `Purchase completed: ${getDisplayName(product)} added to inventory.` })
 }
 
-    
+  const { catalog: batteryCatalog } = useBatteryCatalog()
+
+  const handleBuyBattery = async (battery: BatteryCatalogItem) => {
+    const result = await purchaseBattery(userId, battery)
+    if (!result.ok) {
+      setPurchaseFeedback({ tone: 'error', text: 'Insufficient NCR balance.' })
+      return
+    }
+    await refresh()
+    setPurchaseFeedback({ tone: 'success', text: `Purchase completed: ${battery.name} added to your battery inventory.` })
+  }
 
   return (
     <section className="w-full animate-in fade-in duration-300">
@@ -343,6 +548,29 @@ export function StorePage() {
               key={product.item_id}
               product={product}
               onBuy={handleBuy}
+            />
+          ))}
+        </div>
+
+        {/* ── Sección de Baterías — energía de la sala ────────────── */}
+        <div className="surface-panel rounded-[24px] p-3">
+          <div className="flex items-center gap-2 px-2 py-1">
+            <BatteryCharging className="h-4 w-4 text-emerald-300/80" />
+            <h2 className="font-display text-lg tracking-[0.08em] text-white">
+              Energy Cells
+            </h2>
+            <p className="ml-2 text-[11px] text-slate-500">
+              Recharge your room's energy reserve. Buy now, activate anytime from the Dashboard.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,320px))] justify-center gap-4">
+          {batteryCatalog.map((battery) => (
+            <BatteryProductCard
+              key={battery.itemId}
+              battery={battery}
+              onBuy={handleBuyBattery}
             />
           ))}
         </div>

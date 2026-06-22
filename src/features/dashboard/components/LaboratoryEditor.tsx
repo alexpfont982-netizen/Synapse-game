@@ -201,8 +201,8 @@ function SlotCountRow({
   )
 }
 
-export function LaboratoryEditor() {
-  const { inventory: inventoryEntries, refresh } = useMockPlayerState()
+export function LaboratoryEditor({ userId }: { userId: string }) {
+  const { inventory: inventoryEntries, refresh } = useMockPlayerState(userId)
   const [activeDragType,       setActiveDragType]       = useState<ComponentType | null>(null)
   const [activeInventoryFilter, setActiveInventoryFilter] = useState<InventoryFilterTab>('all')
   const [activeDraggedItem,    setActiveDraggedItem]    = useState<HardwarePiece | null>(null)
