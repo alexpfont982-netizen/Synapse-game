@@ -858,3 +858,180 @@ export async function useBattery(batteryId: string): Promise<UseBatteryResult> {
     whWasted: row.wh_wasted !== null ? Number(row.wh_wasted) : null,
   }
 }
+
+// ── Sistema de distribución de pools ─────────────────────────────
+
+export interface PoolAllocation {
+  pctNcr:  number
+  pctBtc:  number
+  pctEth:  number
+  pctDoge: number
+  pctPol:  number
+  pctBnb:  number
+  lastChangedAt: string
+}
+
+export interface ChangeAllocationResult {
+  success: boolean
+  message: string
+  nextChangeAllowedAt: string | null
+}
+
+// Lee la distribución actual del jugador desde Supabase
+export function usePoolAllocation(userId: string | null | undefined) {
+  const [allocation, setAllocation] = useState<PoolAllocation | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const refresh = useCallback(async () => {
+    if (!userId) { setAllocation(null); setLoading(false); return }
+
+    const { data, error } = await supabase
+      .from('player_pool_allocation')
+      .select('pct_ncr, pct_btc, pct_eth, pct_doge, pct_pol, pct_bnb, last_changed_at')
+      .eq('user_id', userId)
+      .single()
+
+    if (error || !data) {
+      // Si no existe aún, defaults: 100% NCR
+      setAllocation({ pctNcr: 100, pctBtc: 0, pctEth: 0, pctDoge: 0, pctPol: 0, pctBnb: 0, lastChangedAt: new Date().toISOString() })
+      setLoading(false)
+      return
+    }
+
+    setAllocation({
+      pctNcr:        Number(data.pct_ncr),
+      pctBtc:        Number(data.pct_btc),
+      pctEth:        Number(data.pct_eth),
+      pctDoge:       Number(data.pct_doge),
+      pctPol:        Number(data.pct_pol),
+      pctBnb:        Number(data.pct_bnb),
+      lastChangedAt: data.last_changed_at,
+    })
+    setLoading(false)
+  }, [userId])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  return { allocation, loading, refresh }
+}
+
+// Llama a la función segura change_pool_allocation() en Supabase
+export async function changePoolAllocation(
+  pctNcr: number, pctBtc: number, pctEth: number,
+  pctDoge: number, pctPol: number, pctBnb: number,
+): Promise<ChangeAllocationResult> {
+  const { data, error } = await supabase
+    .rpc('change_pool_allocation', {
+      p_pct_ncr:  pctNcr,
+      p_pct_btc:  pctBtc,
+      p_pct_eth:  pctEth,
+      p_pct_doge: pctDoge,
+      p_pct_pol:  pctPol,
+      p_pct_bnb:  pctBnb,
+    })
+    .single()
+
+  if (error || !data) {
+    return { success: false, message: 'Network error', nextChangeAllowedAt: null }
+  }
+
+  const row = data as {
+    success: boolean
+    message: string
+    next_change_allowed_at: string | null
+  }
+
+  return {
+    success:             row.success,
+    message:             row.message,
+    nextChangeAllowedAt: row.next_change_allowed_at,
+  }
+}
+
+// ── Precios de cripto desde CoinGecko ──────────────────────────────
+// Consulta CoinGecko desde el navegador y actualiza crypto_prices en
+// Supabase. Se llama al abrir WalletPage para tener precios frescos.
+
+export interface CryptoPrices {
+  BTC:  number
+  ETH:  number
+  DOGE: number
+  POL:  number
+  BNB:  number
+  NCR:  number
+  USDT: number
+}
+
+const COINGECKO_URL =
+  'https://api.coingecko.com/api/v3/simple/price' +
+  '?ids=bitcoin,ethereum,dogecoin,matic-network,binancecoin' +
+  '&vs_currencies=usd'
+
+export async function fetchAndUpdateCryptoPrices(): Promise<CryptoPrices | null> {
+  try {
+    const res = await fetch(COINGECKO_URL)
+    if (!res.ok) return null
+
+    const data = await res.json()
+
+    const prices: CryptoPrices = {
+      BTC:  data.bitcoin?.usd          ?? 0,
+      ETH:  data.ethereum?.usd         ?? 0,
+      DOGE: data.dogecoin?.usd         ?? 0,
+      POL:  data['matic-network']?.usd ?? 0,
+      BNB:  data.binancecoin?.usd      ?? 0,
+      NCR:  1,
+      USDT: 1,
+    }
+
+    // Actualiza crypto_prices en Supabase para que todos los jugadores
+    // vean precios frescos (el que abre primero la wallet actualiza para todos)
+    const updates = (
+      ['BTC', 'ETH', 'DOGE', 'POL', 'BNB'] as const
+    ).map((c) => ({
+      crypto:       c,
+      usd_price:    prices[c],
+      price_source: 'coingecko',
+      updated_at:   new Date().toISOString(),
+    }))
+
+    await supabase
+      .from('crypto_prices')
+      .upsert(updates, { onConflict: 'crypto' })
+
+    return prices
+  } catch {
+    return null
+  }
+}
+
+// Hook que lee crypto_prices de Supabase y refresca desde CoinGecko
+export function useCryptoPrices() {
+  const [prices, setPrices] = useState<CryptoPrices | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Primero carga desde Supabase (rápido, precios guardados)
+    supabase
+      .from('crypto_prices')
+      .select('crypto, usd_price')
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const p: Partial<CryptoPrices> = {}
+          data.forEach((row) => {
+            const key = row.crypto as keyof CryptoPrices
+            p[key] = Number(row.usd_price)
+          })
+          setPrices(p as CryptoPrices)
+        }
+        setLoading(false)
+      })
+
+    // Luego refresca desde CoinGecko en background
+    fetchAndUpdateCryptoPrices().then((fresh) => {
+      if (fresh) setPrices(fresh)
+    })
+  }, [])
+
+  return { prices, loading }
+}

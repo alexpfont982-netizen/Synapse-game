@@ -1,21 +1,25 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, ShoppingCart, Zap, ChevronDown, TrendingUp, TrendingDown, BatteryCharging } from 'lucide-react'
 import {
-  garageInventory,
-  garageInventoryByCategory,
-} from '../../../data/garageInventory'
+  ShieldCheck,
+  ShoppingCart,
+  Zap,
+  ChevronDown,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react'
+import { garageInventoryByCategory } from '../../../data/garageInventory'
 import {
   purchaseStoreItem,
-  useMockPlayerState,
-  useBatteryCatalog,
   purchaseBattery,
-  type BatteryCatalogItem,
+  useBatteryCatalog,
+  useMockPlayerState,
 } from '../../../data/supabasePlayerState'
+import { buildEnergyCellStoreProducts, type EnergyCellStoreProduct } from '../data/energyCells'
 import { supabase } from '../../../supabaseClient'
 import type {
   GarageInventoryItem,
   StoreItemCondition,
-  StoreTabCategory,
+  StoreProductCategory,
 } from '../../../types/store'
 
 type StoreMetric = {
@@ -30,7 +34,36 @@ type PurchaseFeedback =
     }
   | null
 
-// ── Efectos condicionales (component_conditional_effects) ──────────
+type StoreCatalogCategory = StoreProductCategory | 'energy_cells'
+type StoreCatalogTab = 'all_items' | StoreCatalogCategory
+
+type StoreCatalogItem =
+  | {
+      type: 'hardware'
+      id: string
+      category: StoreProductCategory
+      name: string
+      brand: string
+      condition: StoreItemCondition
+      image: string
+      price: number
+      metrics: StoreMetric[]
+      effectItemId: string
+      source: GarageInventoryItem
+    }
+  | {
+      type: 'energy_cell'
+      id: string
+      category: 'energy_cells'
+      name: string
+      brand: string
+      condition: StoreItemCondition
+      image: string
+      price: number
+      metrics: StoreMetric[]
+      effectDisabledMessage: string
+      source: EnergyCellStoreProduct
+    }
 
 type ProductConditionalEffect = {
   id: number
@@ -43,62 +76,25 @@ type ProductConditionalEffect = {
   description: string
 }
 
-function formatCondition(e: ProductConditionalEffect): string {
-  if (e.condition_op === 'always') return 'Always active'
-  const statLabel = e.condition_stat.replace('_', ' ')
-  const opLabel = e.condition_op === 'gt' ? '>' : e.condition_op === 'gte' ? '\u2265' : e.condition_op === 'lt' ? '<' : '\u2264'
-  return `When ${statLabel} ${opLabel} ${e.condition_value}`
-}
-
-// Hook simple: trae los efectos condicionales de UN item_id puntual.
-// Se usa solo cuando la tarjeta se expande (lazy), para no disparar
-// 57 queries a Supabase al cargar la página completa del Store.
-function useProductEffects(itemId: string, enabled: boolean) {
-  const [effects, setEffects] = useState<ProductConditionalEffect[] | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!enabled || effects !== null) return
-    setLoading(true)
-    supabase
-      .from('component_conditional_effects')
-      .select('*')
-      .eq('item_id', itemId)
-      .then(({ data, error }) => {
-        setLoading(false)
-        if (error) { console.error('useProductEffects error:', error); return }
-        setEffects(
-          (data ?? []).map((row) => ({
-            id: row.id,
-            effect_type: row.effect_type,
-            effect_label: row.effect_label,
-            stat_affected: row.stat_affected,
-            condition_stat: row.condition_stat,
-            condition_op: row.condition_op,
-            condition_value: row.condition_value !== null ? Number(row.condition_value) : null,
-            description: row.description,
-          })),
-        )
-      })
-  }, [enabled, itemId, effects])
-
-  return { effects, loading }
-}
-
 const storeTabs: Array<{
-  id: StoreTabCategory
+  id: StoreCatalogTab
   label: string
   description: string
 }> = [
   {
     id: 'all_items',
     label: 'All Items',
-    description: 'Certified hardware catalog for Synapse Garage components.',
+    description: 'Certified hardware and energy reserve catalog for Synapse Garage operations.',
   },
   {
     id: 'power_supply',
     label: 'Power Supplies',
     description: 'Certified power supply catalog',
+  },
+  {
+    id: 'energy_cells',
+    label: 'Energy Cells',
+    description: 'Rechargeable reserve modules for keeping your garage powered between energy cycles.',
   },
   {
     id: 'power_cable',
@@ -127,10 +123,70 @@ const storeTabs: Array<{
   },
 ]
 
+const allCatalogOrder: StoreCatalogCategory[] = [
+  'power_supply',
+  'energy_cells',
+  'power_cable',
+  'memory',
+  'storage',
+  'gpu',
+  'cooling',
+]
+
 const conditionToneMap: Record<StoreItemCondition, string> = {
   New: 'border-emerald-300/18 bg-emerald-500/10 text-emerald-100',
   Used: 'border-amber-300/18 bg-amber-500/10 text-amber-100',
   Rebuilt: 'border-violet-300/18 bg-violet-500/10 text-violet-100',
+}
+
+function formatCondition(effect: ProductConditionalEffect): string {
+  if (effect.condition_op === 'always') return 'Always active'
+  const statLabel = effect.condition_stat.replace('_', ' ')
+  const opLabel =
+    effect.condition_op === 'gt'
+      ? '>'
+      : effect.condition_op === 'gte'
+        ? '>='
+        : effect.condition_op === 'lt'
+          ? '<'
+          : '<='
+  return `When ${statLabel} ${opLabel} ${effect.condition_value}`
+}
+
+function useProductEffects(itemId: string, enabled: boolean) {
+  const [effects, setEffects] = useState<ProductConditionalEffect[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!enabled || effects !== null) return
+    setLoading(true)
+    supabase
+      .from('component_conditional_effects')
+      .select('*')
+      .eq('item_id', itemId)
+      .then(({ data, error }) => {
+        setLoading(false)
+        if (error) {
+          console.error('useProductEffects error:', error)
+          return
+        }
+        setEffects(
+          (data ?? []).map((row) => ({
+            id: row.id,
+            effect_type: row.effect_type,
+            effect_label: row.effect_label,
+            stat_affected: row.stat_affected,
+            condition_stat: row.condition_stat,
+            condition_op: row.condition_op,
+            condition_value:
+              row.condition_value !== null ? Number(row.condition_value) : null,
+            description: row.description,
+          })),
+        )
+      })
+  }, [enabled, itemId, effects])
+
+  return { effects, loading }
 }
 
 function getDisplayName(product: GarageInventoryItem) {
@@ -188,13 +244,73 @@ function getProductMetrics(product: GarageInventoryItem): StoreMetric[] {
   }
 }
 
-// ── Sección expandible de efectos condicionales ─────────────────────
+function toCatalogItem(product: GarageInventoryItem): StoreCatalogItem {
+  return {
+    type: 'hardware',
+    id: product.item_id,
+    category: product.category,
+    name: getDisplayName(product),
+    brand: product.brand,
+    condition: product.condition,
+    image: product.image,
+    price: product.price,
+    metrics: getProductMetrics(product),
+    effectItemId: product.item_id,
+    source: product,
+  }
+}
 
-function ConditionalEffectsPanel({ itemId, expanded }: { itemId: string; expanded: boolean }) {
-  const { effects, loading } = useProductEffects(itemId, expanded)
-  const isCable = itemId.startsWith('cable_')
+function toEnergyCellCatalogItem(
+  energyCell: EnergyCellStoreProduct,
+): StoreCatalogItem {
+  return {
+    type: 'energy_cell',
+    id: energyCell.itemId,
+    category: 'energy_cells',
+    name: energyCell.name,
+    brand: energyCell.brand,
+    condition: energyCell.condition,
+    image: energyCell.image,
+    price: energyCell.price,
+    metrics: energyCell.metrics,
+    effectDisabledMessage: energyCell.supportMessage,
+    source: energyCell,
+  }
+}
+
+const hardwareCatalogByCategory: Record<StoreProductCategory, StoreCatalogItem[]> = {
+  power_supply: garageInventoryByCategory.power_supply.map(toCatalogItem),
+  power_cable: garageInventoryByCategory.power_cable.map(toCatalogItem),
+  memory: garageInventoryByCategory.memory.map(toCatalogItem),
+  storage: garageInventoryByCategory.storage.map(toCatalogItem),
+  gpu: garageInventoryByCategory.gpu.map(toCatalogItem),
+  cooling: garageInventoryByCategory.cooling.map(toCatalogItem),
+}
+
+function ConditionalEffectsPanel({
+  itemId,
+  expanded,
+  disabledMessage,
+}: {
+  itemId?: string
+  expanded: boolean
+  disabledMessage?: string
+}) {
+  const { effects, loading } = useProductEffects(
+    itemId ?? '',
+    expanded && Boolean(itemId),
+  )
+  const isCable = itemId?.startsWith('cable_') ?? false
 
   if (!expanded) return null
+
+  if (disabledMessage) {
+    return (
+      <div className="mt-2 rounded-[16px] border border-white/8 bg-white/[0.02] px-3 py-3">
+        <p className="text-[11px] text-slate-500 italic">{disabledMessage}</p>
+      </div>
+    )
+  }
 
   if (isCable) {
     return (
@@ -209,13 +325,13 @@ function ConditionalEffectsPanel({ itemId, expanded }: { itemId: string; expande
   if (loading || effects === null) {
     return (
       <div className="mt-2 rounded-[16px] border border-white/8 bg-white/[0.02] px-3 py-3">
-        <p className="text-[11px] text-slate-500">Loading performance data…</p>
+        <p className="text-[11px] text-slate-500">Loading performance data...</p>
       </div>
     )
   }
 
-  const boost = effects.find((e) => e.effect_type === 'boost')
-  const penalty = effects.find((e) => e.effect_type === 'penalty')
+  const boost = effects.find((effect) => effect.effect_type === 'boost')
+  const penalty = effects.find((effect) => effect.effect_type === 'penalty')
 
   return (
     <div className="mt-2 flex flex-col gap-2">
@@ -223,9 +339,13 @@ function ConditionalEffectsPanel({ itemId, expanded }: { itemId: string; expande
         <div className="rounded-[16px] border border-emerald-400/15 bg-emerald-500/[0.06] px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="text-[11px] font-bold text-emerald-300">{boost.effect_label}</span>
+            <span className="text-[11px] font-bold text-emerald-300">
+              {boost.effect_label}
+            </span>
           </div>
-          <p className="mt-1 text-[10px] leading-relaxed text-emerald-200/60">{boost.description}</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-emerald-200/60">
+            {boost.description}
+          </p>
           <p className="mt-1 text-[9px] uppercase tracking-wide text-emerald-500/60">
             {formatCondition(boost)}
           </p>
@@ -236,9 +356,13 @@ function ConditionalEffectsPanel({ itemId, expanded }: { itemId: string; expande
         <div className="rounded-[16px] border border-red-400/15 bg-red-500/[0.06] px-3 py-2.5">
           <div className="flex items-center gap-1.5">
             <TrendingDown className="h-3.5 w-3.5 text-red-400" />
-            <span className="text-[11px] font-bold text-red-300">{penalty.effect_label}</span>
+            <span className="text-[11px] font-bold text-red-300">
+              {penalty.effect_label}
+            </span>
           </div>
-          <p className="mt-1 text-[10px] leading-relaxed text-red-200/60">{penalty.description}</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-red-200/60">
+            {penalty.description}
+          </p>
           <p className="mt-1 text-[9px] uppercase tracking-wide text-red-500/60">
             {formatCondition(penalty)}
           </p>
@@ -247,25 +371,26 @@ function ConditionalEffectsPanel({ itemId, expanded }: { itemId: string; expande
 
       {!boost && !penalty && (
         <div className="rounded-[16px] border border-white/8 bg-white/[0.02] px-3 py-3">
-          <p className="text-[11px] text-slate-500 italic">No conditional effects on record.</p>
+          <p className="text-[11px] text-slate-500 italic">
+            No conditional effects on record.
+          </p>
         </div>
       )}
     </div>
   )
 }
 
-function StoreProductCard({
-  product,
+function StoreCatalogCard({
+  item,
   onBuy,
 }: {
-  product: GarageInventoryItem
-  onBuy: (product: GarageInventoryItem) => void
+  item: StoreCatalogItem
+  onBuy: (item: StoreCatalogItem) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const isPowerCable = product.category === 'power_cable'
-  const metrics = getProductMetrics(product)
-  const topMetrics = metrics.slice(0, 2)
-  const bottomMetrics = metrics.slice(2, 4)
+  const isPowerCable = item.type === 'hardware' && item.category === 'power_cable'
+  const topMetrics = item.metrics.slice(0, 2)
+  const bottomMetrics = item.metrics.slice(2, 4)
 
   return (
     <article className="surface-panel rounded-[22px] p-3 sm:p-4">
@@ -273,8 +398,8 @@ function StoreProductCard({
         <div className="relative flex h-[150px] items-center justify-center overflow-hidden rounded-[18px] border border-white/8 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_rgba(15,23,42,0.45)_55%,_rgba(2,6,23,0.9))] px-3 py-2">
           <div className="absolute inset-x-6 bottom-4 h-10 rounded-full bg-cyan-400/10 blur-2xl" />
           <img
-            src={product.image}
-            alt={getDisplayName(product)}
+            src={item.image}
+            alt={item.name}
             className={`relative z-10 h-full max-h-[205px] w-auto object-contain drop-shadow-[0_14px_30px_rgba(8,145,178,0.35)] ${
               isPowerCable ? 'scale-[1.08]' : ''
             }`}
@@ -284,19 +409,19 @@ function StoreProductCard({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <span
-          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] ${conditionToneMap[product.condition]}`}
+          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] ${conditionToneMap[item.condition]}`}
         >
-          {product.condition}
+          {item.condition}
         </span>
       </div>
 
       <div className="mt-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="font-display text-xl tracking-[0.08em] text-white">
-            {getDisplayName(product)}
+            {item.name}
           </h2>
           <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-            {product.brand}
+            {item.brand}
           </p>
         </div>
 
@@ -305,7 +430,7 @@ function StoreProductCard({
             Price
           </p>
           <p className="mt-1 text-lg font-semibold text-emerald-300">
-            {product.price.toLocaleString()} NCR
+            {item.price.toLocaleString()} NCR
           </p>
         </div>
       </div>
@@ -342,10 +467,9 @@ function StoreProductCard({
         ))}
       </div>
 
-      {/* ── Toggle: rendimiento condicional ─────────────────────── */}
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => setExpanded((value) => !value)}
         className="mt-2 flex w-full items-center justify-between rounded-[14px] border border-white/8 bg-white/[0.02] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 transition hover:border-cyan-300/20 hover:text-cyan-200"
       >
         <span>Performance Conditions</span>
@@ -354,65 +478,20 @@ function StoreProductCard({
         />
       </button>
 
-      <ConditionalEffectsPanel itemId={product.item_id} expanded={expanded} />
+      <ConditionalEffectsPanel
+        itemId={item.type === 'hardware' ? item.effectItemId : undefined}
+        expanded={expanded}
+        disabledMessage={
+          item.type === 'energy_cell' ? item.effectDisabledMessage : undefined
+        }
+      />
 
       <button
         type="button"
-        onClick={() => onBuy(product)}
+        onClick={() => onBuy(item)}
         className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-cyan-300/20 bg-[linear-gradient(90deg,rgba(12,20,34,0.96),rgba(19,33,61,0.94))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-cyan-50 transition hover:border-cyan-200/34 hover:shadow-[0_0_24px_rgba(34,211,238,0.16)]"
       >
         <ShoppingCart className="h-4 w-4" />
-        Buy
-      </button>
-    </article>
-  )
-}
-
-// ── Tarjeta de batería ───────────────────────────────────────────
-
-function BatteryProductCard({
-  battery,
-  onBuy,
-}: {
-  battery: BatteryCatalogItem
-  onBuy: (battery: BatteryCatalogItem) => void
-}) {
-  return (
-    <article className="surface-panel rounded-[22px] p-3 sm:p-4">
-      <div className="flex h-[150px] items-center justify-center overflow-hidden rounded-[20px] border border-white/8 bg-[radial-gradient(circle_at_top,rgba(52,211,153,0.14),transparent_45%),linear-gradient(180deg,rgba(2,6,23,0.98),rgba(15,23,42,0.92))]">
-        <BatteryCharging className="h-16 w-16 text-emerald-300/70" strokeWidth={1.5} />
-      </div>
-
-      <div className="mt-3 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="font-display text-xl tracking-[0.08em] text-white">
-            {battery.name}
-          </h2>
-          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300/70">
-            +{Math.round(battery.whAmount).toLocaleString()} Wh
-          </p>
-        </div>
-
-        <div className="text-right">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-            Price
-          </p>
-          <p className="mt-1 text-lg font-semibold text-emerald-300">
-            {battery.price.toLocaleString()} NCR
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-        {battery.description}
-      </p>
-
-      <button
-        type="button"
-        onClick={() => onBuy(battery)}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/20 bg-[linear-gradient(90deg,rgba(6,34,28,0.96),rgba(12,46,38,0.94))] px-4 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-emerald-50 transition hover:border-emerald-200/34 hover:shadow-[0_0_24px_rgba(52,211,153,0.16)]"
-      >
-        <BatteryCharging className="h-4 w-4" />
         Buy
       </button>
     </article>
@@ -424,38 +503,50 @@ interface StorePageProps {
 }
 
 export function StorePage({ userId }: StorePageProps) {
-  const [activeTab, setActiveTab] = useState<StoreTabCategory>('all_items')
-  const [purchaseFeedback, setPurchaseFeedback] =
-    useState<PurchaseFeedback>(null)
+  const [activeTab, setActiveTab] = useState<StoreCatalogTab>('all_items')
+  const [purchaseFeedback, setPurchaseFeedback] = useState<PurchaseFeedback>(null)
   const { balance, inventory, refresh } = useMockPlayerState(userId)
-
-  const activeTabMeta =
-    storeTabs.find((tab) => tab.id === activeTab) ?? storeTabs[0]
-  const visibleProducts =
-    activeTab === 'all_items'
-      ? garageInventory
-      : garageInventoryByCategory[activeTab]
-
-  const handleBuy = async (product: GarageInventoryItem) => {
-  const result = await purchaseStoreItem(userId, product)
-  if (!result.ok) {
-    setPurchaseFeedback({ tone: 'error', text: 'Insufficient NCR balance.' })
-    return
-  }
-  await refresh()
-  setPurchaseFeedback({ tone: 'success', text: `Purchase completed: ${getDisplayName(product)} added to inventory.` })
-}
-
   const { catalog: batteryCatalog } = useBatteryCatalog()
 
-  const handleBuyBattery = async (battery: BatteryCatalogItem) => {
-    const result = await purchaseBattery(userId, battery)
+  const energyCellProducts = buildEnergyCellStoreProducts(batteryCatalog)
+  const catalogItemsByCategory: Record<StoreCatalogCategory, StoreCatalogItem[]> = {
+    ...hardwareCatalogByCategory,
+    energy_cells: energyCellProducts.map(toEnergyCellCatalogItem),
+  }
+
+  const activeTabMeta = storeTabs.find((tab) => tab.id === activeTab) ?? storeTabs[0]
+  const visibleProducts =
+    activeTab === 'all_items'
+      ? allCatalogOrder.flatMap((category) => catalogItemsByCategory[category])
+      : catalogItemsByCategory[activeTab]
+
+  const handleBuy = async (item: StoreCatalogItem) => {
+    if (item.type === 'hardware') {
+      const result = await purchaseStoreItem(userId, item.source)
+      if (!result.ok) {
+        setPurchaseFeedback({ tone: 'error', text: 'Insufficient NCR balance.' })
+        return
+      }
+
+      await refresh()
+      setPurchaseFeedback({
+        tone: 'success',
+        text: `Purchase completed: ${item.name} added to inventory.`,
+      })
+      return
+    }
+
+    const result = await purchaseBattery(userId, item.source)
     if (!result.ok) {
       setPurchaseFeedback({ tone: 'error', text: 'Insufficient NCR balance.' })
       return
     }
+
     await refresh()
-    setPurchaseFeedback({ tone: 'success', text: `Purchase completed: ${battery.name} added to your battery inventory.` })
+    setPurchaseFeedback({
+      tone: 'success',
+      text: `Purchase completed: ${item.name} added to your battery inventory.`,
+    })
   }
 
   return (
@@ -496,9 +587,7 @@ export function StorePage({ userId }: StorePageProps) {
                 <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
                   Balance
                 </p>
-                <p className="mt-2 text-white">
-                  {balance.toLocaleString()} NCR
-                </p>
+                <p className="mt-2 text-white">{balance.toLocaleString()} NCR</p>
               </div>
             </div>
           </div>
@@ -543,34 +632,11 @@ export function StorePage({ userId }: StorePageProps) {
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,320px))] justify-center gap-4">
-          {visibleProducts.map((product) => (
-            <StoreProductCard
-              key={product.item_id}
-              product={product}
+          {visibleProducts.map((item) => (
+            <StoreCatalogCard
+              key={item.id}
+              item={item}
               onBuy={handleBuy}
-            />
-          ))}
-        </div>
-
-        {/* ── Sección de Baterías — energía de la sala ────────────── */}
-        <div className="surface-panel rounded-[24px] p-3">
-          <div className="flex items-center gap-2 px-2 py-1">
-            <BatteryCharging className="h-4 w-4 text-emerald-300/80" />
-            <h2 className="font-display text-lg tracking-[0.08em] text-white">
-              Energy Cells
-            </h2>
-            <p className="ml-2 text-[11px] text-slate-500">
-              Recharge your room's energy reserve. Buy now, activate anytime from the Dashboard.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,320px))] justify-center gap-4">
-          {batteryCatalog.map((battery) => (
-            <BatteryProductCard
-              key={battery.itemId}
-              battery={battery}
-              onBuy={handleBuyBattery}
             />
           ))}
         </div>
@@ -585,7 +651,7 @@ export function StorePage({ userId }: StorePageProps) {
                 Integration Ready
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-300">
-                Mock purchases now persist locally while this feature stays isolated from player-to-player commerce and future economy integrations.
+                Store purchases now flow through the same catalog surface while battery buys still use the dedicated recharge purchase path behind the scenes.
               </p>
               <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500">
                 Inventory records: {inventory.length}

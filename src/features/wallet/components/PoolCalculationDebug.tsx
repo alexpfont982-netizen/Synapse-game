@@ -6,6 +6,10 @@ import {
 } from '../../../data/supabasePlayerState'
 import { supabase } from '../../../supabaseClient'
 import {
+  getSupabaseErrorMessage,
+  logSupabaseError,
+} from '../utils/supabaseError'
+import {
   computePoolTFlops,
   computeRackTFlops,
   type ComboEffect,
@@ -19,6 +23,9 @@ type UnknownRow = Record<string, unknown>
 
 interface PoolCalculationDebugProps {
   userId: string
+  cryptoPricesLoaded?: boolean
+  zeroPriceDetected?: boolean
+  withdrawalMinimumCalculationReady?: boolean
 }
 
 interface LatestPayoutDebugRow {
@@ -27,7 +34,6 @@ interface LatestPayoutDebugRow {
   user_id: string
   user_tflops: number | string | null
   reward_amount: number | string | null
-  created_at?: string | null
   pool_cycle_history: UnknownRow | UnknownRow[] | null
 }
 
@@ -190,29 +196,36 @@ function useLatestPayoutDebugRow(userId: string) {
             user_id,
             user_tflops,
             reward_amount,
-            created_at,
             pool_cycle_history!inner (*)
           `)
           .eq('user_id', userId)
-          .order('created_at', {
-            foreignTable: 'pool_cycle_history',
-            ascending: false,
-          })
-          .limit(1)
 
         if (queryError) throw queryError
         if (isCancelled) return
 
-        const latestRow = Array.isArray(data) ? data[0] : null
+        const latestRow = (Array.isArray(data) ? data : []).sort((left, right) => {
+          const leftHistory = getJoinedHistory(left as LatestPayoutDebugRow)
+          const rightHistory = getJoinedHistory(right as LatestPayoutDebugRow)
+          const leftTime =
+            typeof leftHistory?.cycle_at === 'string'
+              ? new Date(leftHistory.cycle_at).getTime()
+              : 0
+          const rightTime =
+            typeof rightHistory?.cycle_at === 'string'
+              ? new Date(rightHistory.cycle_at).getTime()
+              : 0
+          return rightTime - leftTime
+        })[0] ?? null
+
         setRow((latestRow as LatestPayoutDebugRow | null) ?? null)
         setError(null)
       } catch (fetchError) {
         if (isCancelled) return
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : 'Failed to audit latest payout cycle',
+        logSupabaseError(
+          '[PoolCalculationDebug] Failed to audit latest payout cycle',
+          fetchError,
         )
+        setError(getSupabaseErrorMessage(fetchError, 'Failed to audit latest payout cycle'))
         setRow(null)
       } finally {
         if (!isCancelled) {
@@ -393,6 +406,9 @@ function useFrontendPoolSnapshot(userId: string) {
 
 export default function PoolCalculationDebug({
   userId,
+  cryptoPricesLoaded = false,
+  zeroPriceDetected = false,
+  withdrawalMinimumCalculationReady = false,
 }: PoolCalculationDebugProps) {
   const {
     row: latestPayoutRow,
@@ -440,9 +456,9 @@ export default function PoolCalculationDebug({
 
     const lastPayoutAmount = toNumber(latestPayoutRow?.reward_amount)
     const lastPayoutDate =
-      typeof joinedHistory?.created_at === 'string'
-        ? joinedHistory.created_at
-        : latestPayoutRow?.created_at ?? null
+      typeof joinedHistory?.cycle_at === 'string'
+        ? joinedHistory.cycle_at
+        : null
 
     const sourceType: SourceType = latestPayoutRow
       ? 'supabase'
@@ -610,6 +626,24 @@ export default function PoolCalculationDebug({
             Current frontend total TFLOPS:
             <span className="ml-2 font-mono text-slate-200">
               {formatValue(snapshot.currentFrontendTotalTFlops, 4)}
+            </span>
+          </p>
+          <p>
+            Crypto prices loaded:
+            <span className="ml-2 font-mono text-slate-200">
+              {cryptoPricesLoaded ? 'yes' : 'no'}
+            </span>
+          </p>
+          <p>
+            Zero price detected:
+            <span className="ml-2 font-mono text-slate-200">
+              {zeroPriceDetected ? 'yes' : 'no'}
+            </span>
+          </p>
+          <p>
+            Withdrawal minimum calculation ready:
+            <span className="ml-2 font-mono text-slate-200">
+              {withdrawalMinimumCalculationReady ? 'yes' : 'no'}
             </span>
           </p>
         </div>

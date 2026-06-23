@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../supabaseClient'
+import {
+  getSupabaseErrorMessage,
+  logSupabaseError,
+} from '../utils/supabaseError'
 
 export interface PoolPayout {
   id: string
@@ -13,7 +17,7 @@ export interface PoolPayout {
 
 interface PoolCycleHistoryRow {
   crypto: string | null
-  created_at: string | null
+  cycle_at: string | null
 }
 
 interface PoolPayoutQueryRow {
@@ -45,14 +49,20 @@ function mapPoolPayout(payout: PoolPayoutQueryRow): PoolPayout {
     user_tflops: payout.user_tflops,
     reward_amount: payout.reward_amount,
     crypto: history?.crypto ?? 'UNKNOWN',
-    created_at: history?.created_at ?? undefined,
+    created_at: history?.cycle_at ?? undefined,
   }
 }
 
 function mapPoolPayouts(
   payouts: PoolPayoutQueryRow[] | null | undefined,
 ): PoolPayout[] {
-  return (payouts ?? []).map(mapPoolPayout)
+  return (payouts ?? [])
+    .map(mapPoolPayout)
+    .sort((left, right) => {
+      const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0
+      const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0
+      return rightTime - leftTime
+    })
 }
 
 export function usePoolPayoutHistory(userId: string, limit: number = 50) {
@@ -77,22 +87,26 @@ export function usePoolPayoutHistory(userId: string, limit: number = 50) {
             reward_amount,
             pool_cycle_history!inner (
               crypto,
-              created_at
+              cycle_at
             )
           `)
           .eq('user_id', userId)
-          .order('created_at', { foreignTable: 'pool_cycle_history', ascending: false })
-          .limit(limit)
 
         if (err) throw err
 
-        // Flatten the data
-        const flattened = mapPoolPayouts(data as PoolPayoutQueryRow[] | null)
+        const flattened = mapPoolPayouts(data as PoolPayoutQueryRow[] | null).slice(
+          0,
+          limit,
+        )
 
         setPayouts(flattened)
         setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error fetching payouts')
+        logSupabaseError(
+          '[usePoolPayoutHistory] Failed to fetch pool payout history',
+          err,
+        )
+        setError(getSupabaseErrorMessage(err, 'Error fetching payouts'))
         setPayouts([])
       } finally {
         setLoading(false)
@@ -136,20 +150,21 @@ export function usePoolPayoutHistory(userId: string, limit: number = 50) {
           reward_amount,
           pool_cycle_history!inner (
             crypto,
-            created_at
+            cycle_at
           )
         `)
         .eq('user_id', userId)
-        .order('created_at', { foreignTable: 'pool_cycle_history', ascending: false })
-        .limit(limit)
 
       if (err) throw err
 
-      const flattened = mapPoolPayouts(data as PoolPayoutQueryRow[] | null)
+      const flattened = mapPoolPayouts(data as PoolPayoutQueryRow[] | null).slice(
+        0,
+        limit,
+      )
 
       setPayouts(flattened)
     } catch (err) {
-      console.error('Failed to refresh payouts:', err)
+      logSupabaseError('[usePoolPayoutHistory] Failed to refresh payouts', err)
     }
   }
 

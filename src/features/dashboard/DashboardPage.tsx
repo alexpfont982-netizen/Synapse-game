@@ -14,9 +14,10 @@ import { LaboratoryEditor } from './components/LaboratoryEditor';
 import garageLevelOneHero from '../../assets/dashboard/garage-room-01.png';
 import { GarageRackOverlay } from './components/GarageRackOverlay';
 import { GarageRoomIndicators } from './components/GarageRoomIndicators';
+import { GarageCurrencySelector } from './components/GarageCurrencySelector';
 import StorePage from '../store/pages/StorePage';
 import MarketplacePage from '../marketplace/pages/MarketplacePage';
-import WalletPage from '../wallet/pages/WalletPage'
+import WalletPage from '../wallet/pages/WalletPage';
 import GamesPage from '../../pages/GamesPage'
 import NeuralLink from '../neural-link/NeuralLink'
 import PacketStorm from '../packet-storm/PacketStorm'
@@ -34,9 +35,11 @@ import {
   type PlayerEnergy,
   useUserBatteries,
   useBattery,
+  usePoolAllocation,
 } from '../../data/supabasePlayerState'
 import RackStatusPanel from './components/RackStatusPanel';
 import { computeRackStatus } from './utils/computeRackStatus';
+import { PoolAllocationPanel } from './components/PoolAllocationPanel';
 
 interface DashboardPageProps {
   session: {
@@ -582,6 +585,8 @@ export default function DashboardPage({
   const { batteries: unusedBatteries, refresh: refreshBatteries } = useUserBatteries(userId)
   const [batteryFeedback, setBatteryFeedback] = useState<string | null>(null)
 
+  const { allocation, refresh: refreshAllocation } = usePoolAllocation(userId)
+
   const handleUseBattery = async (batteryId: string) => {
     const result = await useBattery(batteryId)
     if (!result.success) {
@@ -691,6 +696,8 @@ export default function DashboardPage({
                   />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/15 via-transparent to-slate-950/35" />
 
+                  <GarageCurrencySelector userId={userId} />
+
                   {/* Energy Reserve — esquina superior izquierda, sola */}
                   <div className="pointer-events-none absolute left-3 top-3 z-40 sm:left-4 sm:top-4">
                     <div className="relative overflow-hidden rounded-[18px] border border-white/8 bg-slate-950/62 px-3.5 py-3 shadow-[0_0_24px_rgba(52,211,153,0.08)] backdrop-blur-md">
@@ -770,6 +777,15 @@ export default function DashboardPage({
                         {batteryFeedback}
                       </div>
                     )}
+
+                    {/* Pool Allocation Panel — debajo de Energy + baterías */}
+                    <div className="pointer-events-auto mt-2 w-[220px]">
+                      <PoolAllocationPanel
+                        allocation={allocation}
+                        onSaved={refreshAllocation}
+                      />
+                    </div>
+
                   </div>
 
                   <GarageRackOverlay userId={userId} />
