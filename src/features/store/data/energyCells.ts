@@ -36,7 +36,7 @@ const energyCellBlueprints: EnergyCellBlueprint[] = [
   {
     itemId: 'battery_small',
     name: 'Compact Cell',
-    price: 600,
+    price: 0.006,
     whAmount: 6000,
     image: compactCellImage,
     description:
@@ -51,7 +51,7 @@ const energyCellBlueprints: EnergyCellBlueprint[] = [
   {
     itemId: 'battery_medium',
     name: 'Power Cell',
-    price: 2200,
+    price: 0.010,
     whAmount: 22500,
     image: powerCellImage,
     description:
@@ -66,7 +66,7 @@ const energyCellBlueprints: EnergyCellBlueprint[] = [
   {
     itemId: 'battery_large',
     name: 'Reactor Core',
-    price: 5000,
+    price: 0.025,
     whAmount: 52500,
     image: reactorCoreImage,
     description:
@@ -107,7 +107,7 @@ export function buildEnergyCellStoreProducts(
       {
         ...battery,
         name: blueprint.name,
-        price: blueprint.price,
+        price: battery.price,        // ← usa el precio de Supabase
         whAmount: blueprint.whAmount,
         description: blueprint.description,
         category: 'energy_cells' as const,

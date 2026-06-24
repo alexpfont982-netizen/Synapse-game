@@ -94,6 +94,9 @@ type PurchaseResult =
   | { ok: true;  entry: MockPlayerInventoryItem }
   | { ok: false; reason: 'insufficient_balance' | 'error' }
 
+// PLAYER_ID fijo eliminado — ahora cada función recibe el userId real
+// del usuario autenticado (session.id desde App.tsx → DashboardPage → aquí)
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 function parseSignedNumber(value: string): number {
@@ -112,6 +115,8 @@ function getHardwareType(category: StoreProductCategory): MockHardwareType {
   }
 }
 
+// Lee los stats directamente del campo stats (JSONB) de Supabase
+// junto con boost y penalty que son columnas separadas
 function getStatsFromCatalog(
   catalogStats: Record<string, unknown>,
   category: StoreProductCategory,
@@ -212,9 +217,8 @@ function getStatsFromCatalog(
 
 async function fetchPlayerState(userId: string): Promise<{ balance: number; inventory: MockPlayerInventoryItem[] }> {
   try {
-    // NCR balance ahora viene de user_wallets
     const { data: economy } = await supabase
-      .from('user_wallets')
+      .from('user_economy')
       .select('ncr_balance')
       .eq('id', userId)
       .single()
@@ -236,6 +240,7 @@ async function fetchPlayerState(userId: string): Promise<{ balance: number; inve
       return { balance: Number(economy?.ncr_balance ?? 0), inventory: [] }
     }
 
+    // Solo pedimos las columnas que realmente existen en la tabla
     const { data: catalog } = await supabase
       .from('components_catalog')
       .select('item_id, brand, model, category, condition, price, image_path, stats, boost, penalty')
@@ -250,6 +255,7 @@ async function fetchPlayerState(userId: string): Promise<{ balance: number; inve
         const cat = catalogMap.get(row.item_id as string)
         if (!cat) return null
 
+        // Las stats vienen del campo JSONB 'stats' + boost y penalty como columnas separadas
         const catalogStats: Record<string, unknown> = {
           ...((cat.stats as Record<string, unknown>) ?? {}),
           boost:   cat.boost,
@@ -312,7 +318,7 @@ export function selectMockHardwarePieces(
 ): MockHardwarePiece[] {
   return inventory.map(item => ({
     id:           item.inventory_id,
-    item_id:      item.item_id,
+    item_id:      item.item_id, 
     type:         getHardwareType(item.category),
     name:         `${item.brand} ${item.model}`.trim(),
     brand:        item.brand,
@@ -343,9 +349,8 @@ export async function purchaseStoreItem(
     image:      string
   },
 ): Promise<PurchaseResult> {
-  // NCR balance desde user_wallets
   const { data: economy } = await supabase
-    .from('user_wallets')
+    .from('user_economy')
     .select('ncr_balance')
     .eq('id', userId)
     .single()
@@ -355,7 +360,7 @@ export async function purchaseStoreItem(
   }
 
   const { error: balanceError } = await supabase
-    .from('user_wallets')
+    .from('user_economy')
     .update({ ncr_balance: Number(economy.ncr_balance) - product.price })
     .eq('id', userId)
 
@@ -443,6 +448,7 @@ export function useRackBuffs(installedItemIds: string[]) {
 
 // ── useConditionalEffects ───────────────────────────────────────────
 
+// Tipos exportados para usar en RackStatusPanel
 export type ConditionalEffect = {
   id: number
   item_id: string
@@ -454,15 +460,18 @@ export type ConditionalEffect = {
   condition_op: 'lt' | 'lte' | 'gt' | 'gte' | 'always'
   condition_value: number | null
   description: string
+  // Runtime: si la condición está activa ahora
   active: boolean
 }
 
+// Stats actuales del rack necesarios para evaluar condiciones
 export type RackRuntimeStats = {
-  temperature: number
-  power_load: number
-  stability: number
+  temperature: number   // °C neto del rack
+  power_load: number    // W totales
+  stability: number     // % calculado
 }
 
+// Evalúa si una condición se cumple dados los stats actuales
 function evaluateCondition(
   effect: Omit<ConditionalEffect, 'active'>,
   stats: RackRuntimeStats,
@@ -482,6 +491,7 @@ function evaluateCondition(
   }
 }
 
+// Hook: carga efectos condicionales de las piezas instaladas y los evalúa
 export function useConditionalEffects(
   installedItemIds: string[],
   rackStats: RackRuntimeStats,
@@ -515,7 +525,9 @@ export function useConditionalEffects(
         setEffects(evaluated)
       })
   }, [
+    // Re-evalúa si cambian las piezas O si los stats cruzan un umbral
     JSON.stringify([...installedItemIds].sort()),
+    // Discretizamos los stats para no re-renderizar en cada décima de grado
     Math.floor(rackStats.temperature / 5),
     Math.floor(rackStats.power_load / 50),
     Math.floor(rackStats.stability / 5),
@@ -527,12 +539,18 @@ export function useConditionalEffects(
     inactiveEffects:   effects.filter(e => !e.active),
     activeBoosts:      effects.filter(e => e.active && e.effect_type === 'boost'),
     activePenalties:   effects.filter(e => e.active && e.effect_type === 'penalty'),
+    // Útil para mostrar "potenciales" en el panel
     potentialPenalties: effects.filter(e => !e.active && e.effect_type === 'penalty'),
     potentialBoosts:    effects.filter(e => !e.active && e.effect_type === 'boost'),
   }
 }
 
 // ── useRackTFlops ─────────────────────────────────────────────────
+// Hook que calcula los TFLOPS efectivos de UN rack usando el motor
+// iterativo (rackComputeEngine). A diferencia de useConditionalEffects
+// (que evalúa contra los stats YA calculados externamente), este hook
+// resuelve el sistema en cascada completo: parte de los stats base del
+// hardware instalado y converge iterando los efectos condicionales.
 
 import {
   computeRackTFlops,
@@ -558,6 +576,7 @@ function pieceToComputeInput(piece: MockHardwarePiece): RackPieceForCompute {
   }
 }
 
+// Combo entre piezas tal como lo devuelve useRackBuffs (component_interactions)
 type RackBuffEntry = {
   item_a: string
   item_b: string
@@ -619,6 +638,9 @@ export function useRackTFlops(
 }
 
 // ── usePlayerEnergy ───────────────────────────────────────────────
+// Lee la energía REAL del jugador desde player_energy (tabla actualizada
+// por el cron job process_energy_cycle cada 15 min en el servidor).
+// Solo lectura desde el cliente — la escritura es exclusiva del backend.
 
 export interface PlayerEnergy {
   currentWh: number
@@ -661,6 +683,9 @@ export function usePlayerEnergy(userId: string | null | undefined) {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // Refresco automático cada 15 minutos, sincronizado con el ciclo del
+  // cron job (process_energy_cycle) que corre en el servidor. Así el
+  // jugador ve su energía actualizada sin necesidad de recargar la página.
   useEffect(() => {
     if (!userId) return
     const FIFTEEN_MINUTES_MS = 15 * 60 * 1000
@@ -674,6 +699,8 @@ export function usePlayerEnergy(userId: string | null | undefined) {
 }
 
 // ── Sistema de Baterías ──────────────────────────────────────────
+// Catálogo de baterías disponibles en el Store + inventario del
+// jugador (compradas pero no usadas) + acción de usar una batería.
 
 export interface BatteryCatalogItem {
   itemId: string
@@ -692,6 +719,7 @@ export interface UserBattery {
   usedAt: string | null
 }
 
+// Catálogo: lectura pública, no depende del usuario
 export function useBatteryCatalog() {
   const [catalog, setCatalog] = useState<BatteryCatalogItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -708,7 +736,7 @@ export function useBatteryCatalog() {
             itemId: row.item_id,
             name: row.name,
             whAmount: Number(row.wh_amount),
-            price: Number(row.price),
+            price: row.price,
             description: row.description ?? '',
           })),
         )
@@ -719,6 +747,7 @@ export function useBatteryCatalog() {
   return { catalog, loading }
 }
 
+// Inventario de baterías SIN usar del jugador
 export function useUserBatteries(userId: string | null | undefined) {
   const [batteries, setBatteries] = useState<UserBattery[]>([])
   const [loading, setLoading] = useState(true)
@@ -757,14 +786,13 @@ export function useUserBatteries(userId: string | null | undefined) {
   return { batteries, loading, refresh }
 }
 
-// Comprar batería: descuenta NCR de user_wallets
+// Comprar una batería: descuenta NCR del balance, inserta en user_batteries
 export async function purchaseBattery(
   userId: string,
   battery: BatteryCatalogItem,
 ): Promise<{ ok: true } | { ok: false; reason: 'insufficient_balance' | 'error' }> {
-  // NCR balance desde user_wallets
   const { data: economy } = await supabase
-    .from('user_wallets')
+    .from('user_economy')
     .select('ncr_balance')
     .eq('id', userId)
     .single()
@@ -774,7 +802,7 @@ export async function purchaseBattery(
   }
 
   const { error: balanceError } = await supabase
-    .from('user_wallets')
+    .from('user_economy')
     .update({ ncr_balance: Number(economy.ncr_balance) - battery.price })
     .eq('id', userId)
 
@@ -794,6 +822,8 @@ export async function purchaseBattery(
   return { ok: true }
 }
 
+// Usar una batería: llama a la función segura use_battery() en Supabase,
+// que valida propiedad, evita doble uso, y aplica el tope duro de energía.
 export interface UseBatteryResult {
   success: boolean
   message: string
@@ -847,6 +877,7 @@ export interface ChangeAllocationResult {
   nextChangeAllowedAt: string | null
 }
 
+// Lee la distribución actual del jugador desde Supabase
 export function usePoolAllocation(userId: string | null | undefined) {
   const [allocation, setAllocation] = useState<PoolAllocation | null>(null)
   const [loading, setLoading] = useState(true)
@@ -861,6 +892,7 @@ export function usePoolAllocation(userId: string | null | undefined) {
       .single()
 
     if (error || !data) {
+      // Si no existe aún, defaults: 100% NCR
       setAllocation({ pctNcr: 100, pctBtc: 0, pctEth: 0, pctDoge: 0, pctPol: 0, pctBnb: 0, lastChangedAt: new Date().toISOString() })
       setLoading(false)
       return
@@ -883,6 +915,7 @@ export function usePoolAllocation(userId: string | null | undefined) {
   return { allocation, loading, refresh }
 }
 
+// Llama a la función segura change_pool_allocation() en Supabase
 export async function changePoolAllocation(
   pctNcr: number, pctBtc: number, pctEth: number,
   pctDoge: number, pctPol: number, pctBnb: number,
@@ -915,7 +948,9 @@ export async function changePoolAllocation(
   }
 }
 
-// ── Precios de cripto ─────────────────────────────────────────────
+// ── Precios de cripto desde CoinGecko ──────────────────────────────
+// Consulta CoinGecko desde el navegador y actualiza crypto_prices en
+// Supabase. Se llama al abrir WalletPage para tener precios frescos.
 
 export interface CryptoPrices {
   BTC:  number
@@ -949,6 +984,8 @@ export async function fetchAndUpdateCryptoPrices(): Promise<CryptoPrices | null>
       USDT: 1,
     }
 
+    // Actualiza crypto_prices en Supabase para que todos los jugadores
+    // vean precios frescos (el que abre primero la wallet actualiza para todos)
     const updates = (
       ['BTC', 'ETH', 'DOGE', 'POL', 'BNB'] as const
     ).map((c) => ({
@@ -968,11 +1005,13 @@ export async function fetchAndUpdateCryptoPrices(): Promise<CryptoPrices | null>
   }
 }
 
+// Hook que lee crypto_prices de Supabase y refresca desde CoinGecko
 export function useCryptoPrices() {
   const [prices, setPrices] = useState<CryptoPrices | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Primero carga desde Supabase (rápido, precios guardados)
     supabase
       .from('crypto_prices')
       .select('crypto, usd_price')
@@ -988,6 +1027,7 @@ export function useCryptoPrices() {
         setLoading(false)
       })
 
+    // Luego refresca desde CoinGecko en background
     fetchAndUpdateCryptoPrices().then((fresh) => {
       if (fresh) setPrices(fresh)
     })

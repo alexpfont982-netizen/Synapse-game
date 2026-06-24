@@ -49,7 +49,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'PS_350A',
     category: 'power_supply',
     condition: 'Used',
-    price: 3,
+    price: 1200,
     image_path: '/assets/dashboard/components/power-supplies/rustcore-350-used.png',
     image: powerSupplyImages.rustcore350Used,
     description:
@@ -69,7 +69,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'PS_350A',
     category: 'power_supply',
     condition: 'Rebuilt',
-    price: 5,
+    price: 1900,
     image_path: '/assets/dashboard/components/power-supplies/rustcore-350-rebuild.png',
     image: powerSupplyImages.rustcore350Rebuild,
     description:
@@ -89,7 +89,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'PS_350A',
     category: 'power_supply',
     condition: 'New',
-    price: 8,
+    price: 3000,
     image_path: '/assets/dashboard/components/power-supplies/rustcore-350-new.png',
     image: powerSupplyImages.rustcore350New,
     description:
@@ -109,7 +109,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'VS_450',
     category: 'power_supply',
     condition: 'Used',
-    price: 7,
+    price: 1950,
     image_path: '/assets/dashboard/components/power-supplies/voltforge-450-used.png',
     image: powerSupplyImages.voltforge450Used,
     description:
@@ -129,7 +129,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'VS_450',
     category: 'power_supply',
     condition: 'Rebuilt',
-    price: 10,
+    price: 2850,
     image_path: '/assets/dashboard/components/power-supplies/voltforge-450-rebuild.png',
     image: powerSupplyImages.voltforge450Rebuild,
     description:
@@ -149,7 +149,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'VS_450',
     category: 'power_supply',
     condition: 'New',
-    price: 15,
+    price: 4300,
     image_path: '/assets/dashboard/components/power-supplies/voltforge-450-new.png',
     image: powerSupplyImages.voltforge450New,
     description:
@@ -169,7 +169,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'TTN_600',
     category: 'power_supply',
     condition: 'Used',
-    price: 14,
+    price: 2800,
     image_path: '/assets/dashboard/components/power-supplies/titangrid-600-used.png',
     image: powerSupplyImages.titangrid600Used,
     description:
@@ -189,7 +189,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'TTN_600',
     category: 'power_supply',
     condition: 'Rebuilt',
-    price: 20,
+    price: 4600,
     image_path: '/assets/dashboard/components/power-supplies/titangrid-600-rebuild.png',
     image: powerSupplyImages.titangrid600Rebuild,
     description:
@@ -209,7 +209,7 @@ export const powerSupplyProducts: PowerSupplyProduct[] = [
     model: 'TTN_600',
     category: 'power_supply',
     condition: 'New',
-    price: 28,
+    price: 6800,
     image_path: '/assets/dashboard/components/power-supplies/titangrid-600-new.png',
     image: powerSupplyImages.titangrid600New,
     description:
@@ -232,7 +232,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'Basic',
     category: 'power_cable',
     condition: 'Used',
-    price: 1,
+    price: 600,
     image_path:
       '/assets/dashboard/components/power-cables/cable_copperlink_basic_used.png',
     image: powerCableImages.cableCopperlinkBasicUsed,
@@ -251,7 +251,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'Basic',
     category: 'power_cable',
     condition: 'Rebuilt',
-    price: 2,
+    price: 1000,
     image_path:
       '/assets/dashboard/components/power-cables/cable_copperlink_basic_rebuilt.png',
     image: powerCableImages.cableCopperlinkBasicRebuilt,
@@ -270,7 +270,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'Basic',
     category: 'power_cable',
     condition: 'New',
-    price: 2,
+    price: 1500,
     image_path:
       '/assets/dashboard/components/power-cables/cable_copperlink_basic_new.png',
     image: powerCableImages.cableCopperlinkBasicNew,
@@ -289,7 +289,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'Reinforced',
     category: 'power_cable',
     condition: 'Used',
-    price: 3,
+    price: 1200,
     image_path:
       '/assets/dashboard/components/power-cables/cable_voltline_reinforced_used.png',
     image: powerCableImages.cableVoltlineReinforcedUsed,
@@ -308,7 +308,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'Reinforced',
     category: 'power_cable',
     condition: 'Rebuilt',
-    price: 4,
+    price: 1900,
     image_path:
       '/assets/dashboard/components/power-cables/cable_voltline_reinforced_rebuilt.png',
     image: powerCableImages.cableVoltlineReinforcedRebuilt,
@@ -327,7 +327,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'Reinforced',
     category: 'power_cable',
     condition: 'New',
-    price: 5,
+    price: 2800,
     image_path:
       '/assets/dashboard/components/power-cables/cable_voltline_reinforced_new.png',
     image: powerCableImages.cableVoltlineReinforcedNew,
@@ -346,7 +346,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'HighCap',
     category: 'power_cable',
     condition: 'Used',
-    price: 5,
+    price: 2200,
     image_path:
       '/assets/dashboard/components/power-cables/cable_fluxcord_highcap_used.png',
     image: powerCableImages.cableFluxcordHighcapUsed,
@@ -365,7 +365,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'HighCap',
     category: 'power_cable',
     condition: 'Rebuilt',
-    price: 7,
+    price: 3400,
     image_path:
       '/assets/dashboard/components/power-cables/cable_fluxcord_highcap_rebuilt.png',
     image: powerCableImages.cableFluxcordHighcapRebuilt,
@@ -384,7 +384,7 @@ export const powerCableProducts: PowerCableProduct[] = [
     model: 'HighCap',
     category: 'power_cable',
     condition: 'New',
-    price: 9,
+    price: 4800,
     image_path:
       '/assets/dashboard/components/power-cables/cable_fluxcord_highcap_new.png',
     image: powerCableImages.cableFluxcordHighcapNew,
@@ -406,7 +406,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '4GB',
     category: 'memory',
     condition: 'Used',
-    price: 2,
+    price: 900,
     image_path: '/assets/dashboard/components/memory/mem_corecell_4gb_used.png',
     image: memoryImages.memCorecell4gbUsed,
     description:
@@ -426,7 +426,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '4GB',
     category: 'memory',
     condition: 'Rebuilt',
-    price: 3,
+    price: 1400,
     image_path:
       '/assets/dashboard/components/memory/mem_corecell_4gb_rebuilt.png',
     image: memoryImages.memCorecell4gbRebuilt,
@@ -447,7 +447,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '4GB',
     category: 'memory',
     condition: 'New',
-    price: 4,
+    price: 2200,
     image_path: '/assets/dashboard/components/memory/mem_corecell_4gb_new.png',
     image: memoryImages.memCorecell4gbNew,
     description:
@@ -467,7 +467,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '8GB',
     category: 'memory',
     condition: 'Used',
-    price: 5,
+    price: 2500,
     image_path: '/assets/dashboard/components/memory/mem_deepcore_8gb_used.png',
     image: memoryImages.memDeepcore8gbUsed,
     description:
@@ -487,7 +487,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '8GB',
     category: 'memory',
     condition: 'Rebuilt',
-    price: 7,
+    price: 3800,
     image_path:
       '/assets/dashboard/components/memory/mem_deepcore_8gb_rebuilt.png',
     image: memoryImages.memDeepcore8gbRebuilt,
@@ -508,7 +508,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '8GB',
     category: 'memory',
     condition: 'New',
-    price: 9,
+    price: 5200,
     image_path: '/assets/dashboard/components/memory/mem_deepcore_8gb_new.png',
     image: memoryImages.memDeepcore8gbNew,
     description:
@@ -528,7 +528,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '16GB',
     category: 'memory',
     condition: 'Used',
-    price: 9,
+    price: 6500,
     image_path:
       '/assets/dashboard/components/memory/mem_synapticboard_16gb_used.png',
     image: memoryImages.memSynapticboard16gbUsed,
@@ -549,7 +549,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '16GB',
     category: 'memory',
     condition: 'Rebuilt',
-    price: 14,
+    price: 9000,
     image_path:
       '/assets/dashboard/components/memory/mem_synapticboard_16gb_rebuilt.png',
     image: memoryImages.memSynapticboard16gbRebuilt,
@@ -570,7 +570,7 @@ export const memoryProducts: MemoryProduct[] = [
     model: '16GB',
     category: 'memory',
     condition: 'New',
-    price: 20,
+    price: 12500,
     image_path:
       '/assets/dashboard/components/memory/mem_synapticboard_16gb_new.png',
     image: memoryImages.memSynapticboard16gbNew,
@@ -594,7 +594,7 @@ export const storageProducts: StorageProduct[] = [
     model: '500GB',
     category: 'storage',
     condition: 'Used',
-    price: 4,
+    price: 1800,
     image_path:
       '/assets/dashboard/components/storage/storage_databrick_500gb_used.png',
     image: storageImages.storageDatabrick500gbUsed,
@@ -615,7 +615,7 @@ export const storageProducts: StorageProduct[] = [
     model: '500GB',
     category: 'storage',
     condition: 'Rebuilt',
-    price: 6,
+    price: 2800,
     image_path:
       '/assets/dashboard/components/storage/storage_databrick_500gb_rebuilt.png',
     image: storageImages.storageDatabrick500gbRebuilt,
@@ -636,7 +636,7 @@ export const storageProducts: StorageProduct[] = [
     model: '500GB',
     category: 'storage',
     condition: 'New',
-    price: 8,
+    price: 4200,
     image_path:
       '/assets/dashboard/components/storage/storage_databrick_500gb_new.png',
     image: storageImages.storageDatabrick500gbNew,
@@ -657,7 +657,7 @@ export const storageProducts: StorageProduct[] = [
     model: '1TB',
     category: 'storage',
     condition: 'Used',
-    price: 7,
+    price: 4500,
     image_path:
       '/assets/dashboard/components/storage/storage_codevault_1tb_used.png',
     image: storageImages.storageColdvault1tbUsed,
@@ -678,7 +678,7 @@ export const storageProducts: StorageProduct[] = [
     model: '1TB',
     category: 'storage',
     condition: 'Rebuilt',
-    price: 10,
+    price: 6200,
     image_path:
       '/assets/dashboard/components/storage/storage_codevault_1tb_rebuilt.png',
     image: storageImages.storageColdvault1tbRebuilt,
@@ -699,7 +699,7 @@ export const storageProducts: StorageProduct[] = [
     model: '1TB',
     category: 'storage',
     condition: 'New',
-    price: 15,
+    price: 8500,
     image_path:
       '/assets/dashboard/components/storage/storage_codevault_1tb_new.png',
     image: storageImages.storageColdvault1tbNew,
@@ -720,7 +720,7 @@ export const storageProducts: StorageProduct[] = [
     model: '256GB',
     category: 'storage',
     condition: 'Used',
-    price: 10,
+    price: 7000,
     image_path:
       '/assets/dashboard/components/storage/storage_rapidcell_256gb_used.png',
     image: storageImages.storageRapidcell256gbUsed,
@@ -741,7 +741,7 @@ export const storageProducts: StorageProduct[] = [
     model: '256GB',
     category: 'storage',
     condition: 'Rebuilt',
-    price: 14,
+    price: 9800,
     image_path:
       '/assets/dashboard/components/storage/storage_rapidcell_250gb_rebuilt.png',
     image: storageImages.storageRapidcell256gbRebuilt,
@@ -762,7 +762,7 @@ export const storageProducts: StorageProduct[] = [
     model: '256GB',
     category: 'storage',
     condition: 'New',
-    price: 20,
+    price: 13500,
     image_path:
       '/assets/dashboard/components/storage/storage_rapidcell_256gb_new.png',
     image: storageImages.storageRapidcell256gbNew,
@@ -786,7 +786,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '2GB',
     category: 'gpu',
     condition: 'Used',
-    price: 6,
+    price: 3200,
     image_path: '/assets/dashboard/components/gpus/gpu_ironpixel_2gb_used.png',
     image: gpuIronpixel2gbUsed,
     description:
@@ -806,7 +806,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '2GB',
     category: 'gpu',
     condition: 'Rebuilt',
-    price: 10,
+    price: 4800,
     image_path:
       '/assets/dashboard/components/gpus/gpu_ironpixel_2gb_rebuilt.png',
     image: gpuIronpixel2gbRebuilt,
@@ -827,7 +827,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '2GB',
     category: 'gpu',
     condition: 'New',
-    price: 15,
+    price: 6800,
     image_path: '/assets/dashboard/components/gpus/gpu_ironpixel_2gb_new.png',
     image: gpuIronpixel2gbNew,
     description:
@@ -847,7 +847,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '4GB',
     category: 'gpu',
     condition: 'Used',
-    price: 16,
+    price: 72000,
     image_path: '/assets/dashboard/components/gpus/gpu_corerender_4gb_used.png',
     image: gpuCorerender4gbUsed,
     description:
@@ -867,7 +867,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '4GB',
     category: 'gpu',
     condition: 'Rebuilt',
-    price: 25,
+    price: 9800,
     image_path:
       '/assets/dashboard/components/gpus/gpu_corerender_4gb_rebuilt.png',
     image: gpuCorerender4gbRebuilt,
@@ -888,7 +888,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '4GB',
     category: 'gpu',
     condition: 'New',
-    price: 35,
+    price: 13500,
     image_path: '/assets/dashboard/components/gpus/gpu_corerender_4gb_new.png',
     image: gpuCorerender4gbNew,
     description:
@@ -908,7 +908,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '6GB',
     category: 'gpu',
     condition: 'Used',
-    price: 38,
+    price: 14500,
     image_path: '/assets/dashboard/components/gpus/gpu_neurovolt_6gb_used.png',
     image: gpuNeurovolt6gbUsed,
     description:
@@ -928,7 +928,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '6GB',
     category: 'gpu',
     condition: 'Rebuilt',
-    price: 55,
+    price: 19500,
     image_path:
       '/assets/dashboard/components/gpus/gpu_neurovolt_6gb_rebuilt.png',
     image: gpuNeurovolt6gbRebuilt,
@@ -949,7 +949,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '6GB',
     category: 'gpu',
     condition: 'New',
-    price: 75,
+    price: 26000,
     image_path: '/assets/dashboard/components/gpus/gpu_neurovolt_6gb_new.png',
     image: gpuNeurovolt6gbNew,
     description:
@@ -969,7 +969,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '8GB',
     category: 'gpu',
     condition: 'Used',
-    price: 75,
+    price: 28000,
     image_path:
       '/assets/dashboard/components/gpus/gpu_aetherframe_8gb_used.png',
     image: gpuAetherframe8gbUsed,
@@ -990,7 +990,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '8GB',
     category: 'gpu',
     condition: 'Rebuilt',
-    price: 110,
+    price: 38000,
     image_path:
       '/assets/dashboard/components/gpus/gpu_aetherframe_8gb_rebuilt.png',
     image: gpuAetherframe8gbRebuilt,
@@ -1011,7 +1011,7 @@ export const gpuProducts: GpuProduct[] = [
     model: '8GB',
     category: 'gpu',
     condition: 'New',
-    price: 150,
+    price: 52000,
     image_path:
       '/assets/dashboard/components/gpus/gpu_aetherframe_8gb_new.png',
     image: gpuAetherframe8gbNew,
@@ -1035,7 +1035,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: '80mm',
     category: 'cooling',
     condition: 'Used',
-    price: 3,
+    price: 700,
     image_path:
       '/assets/dashboard/components/cooling/cooling_dustfan_80mm_used.png',
     image: coolingDustfan80mmUsed,
@@ -1054,7 +1054,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: '80mm',
     category: 'cooling',
     condition: 'Rebuilt',
-    price: 4,
+    price: 1100,
     image_path:
       '/assets/dashboard/components/cooling/cooling_dustfan_80mm_rebuilt.png',
     image: coolingDustfan80mmRebuilt,
@@ -1073,7 +1073,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: '80mm',
     category: 'cooling',
     condition: 'New',
-    price: 6,
+    price: 1600,
     image_path:
       '/assets/dashboard/components/cooling/cooling_dustfan_80mm_new.png',
     image: coolingDustfan80mmNew,
@@ -1092,7 +1092,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: '120mm',
     category: 'cooling',
     condition: 'Used',
-    price: 6,
+    price: 1300,
     image_path:
       '/assets/dashboard/components/cooling/cooling_coolgrid_120mm_used.png',
     image: coolingCoolgrid120mmUsed,
@@ -1111,7 +1111,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: '120mm',
     category: 'cooling',
     condition: 'Rebuilt',
-    price: 9,
+    price: 1900,
     image_path:
       '/assets/dashboard/components/cooling/cooling_coolgrid_120mm_rebuilt.png',
     image: coolingCoolgrid120mmRebuilt,
@@ -1130,7 +1130,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: '120mm',
     category: 'cooling',
     condition: 'New',
-    price: 12,
+    price: 2600,
     image_path:
       '/assets/dashboard/components/cooling/cooling_coolgrid_120mm_new.png',
     image: coolingCoolgrid120mmNew,
@@ -1149,7 +1149,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: 'Dual',
     category: 'cooling',
     condition: 'Used',
-    price: 13,
+    price: 2400,
     image_path:
       '/assets/dashboard/components/cooling/cooling_frostcore_dual_used.png',
     image: coolingFrostcoreDualUsed,
@@ -1168,7 +1168,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: 'Dual',
     category: 'cooling',
     condition: 'Rebuilt',
-    price: 20,
+    price: 3200,
     image_path:
       '/assets/dashboard/components/cooling/cooling_frostcore_dual_rebuilt.png',
     image: coolingFrostcoreDualRebuilt,
@@ -1187,7 +1187,7 @@ export const coolingProducts: CoolingProduct[] = [
     model: 'Dual',
     category: 'cooling',
     condition: 'New',
-    price: 28,
+    price: 4300,
     image_path:
       '/assets/dashboard/components/cooling/cooling_frostcore_dual_new.png',
     image: coolingFrostcoreDualNew,

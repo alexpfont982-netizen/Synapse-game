@@ -1,5 +1,4 @@
 import { startTransition, useEffect, useMemo, useState } from 'react';
-import { TopResourceBar } from './components/TopResourceBar';
 import {
   benchmarkPanel,
   navItems,
@@ -19,6 +18,7 @@ import StorePage from '../store/pages/StorePage';
 import MarketplacePage from '../marketplace/pages/MarketplacePage';
 import WalletPage from '../wallet/pages/WalletPage';
 import GamesPage from '../../pages/GamesPage'
+import { isLegalRoute } from '../../pages/legal/legalRoutes';
 import NeuralLink from '../neural-link/NeuralLink'
 import PacketStorm from '../packet-storm/PacketStorm'
 import NetRush from '../net-rush/NetRush'
@@ -531,7 +531,7 @@ export default function DashboardPage({
 
   const userId = session.id
 
-  const { balance, inventory } = useMockPlayerState(userId)
+  const { inventory } = useMockPlayerState(userId)
   const userEmail = session.email ?? 'Unknown user'
   const isLaboratorySection =
     activeSection === 'laboratory' ||
@@ -541,6 +541,10 @@ export default function DashboardPage({
 
   useEffect(() => {
     const syncFromLocation = () => {
+      if (isLegalRoute(window.location.pathname)) {
+        return
+      }
+
       const nextSection = resolveSectionFromPath(window.location.pathname)
       setActiveSection((current) =>
         current === nextSection ? current : nextSection,
@@ -661,14 +665,7 @@ export default function DashboardPage({
             }}
           />
         }
-        topBar={
-          activeSection === 'dashboard' ? (
-            <TopResourceBar
-              performanceScore={Math.round(hardwareStats.tflops * 100)}
-              balance={balance}
-            />
-          ) : null
-        }
+        topBar={null}
         aside={
           activeSection === 'dashboard' ? (
             <div className="relative z-30 space-y-3">
@@ -698,7 +695,6 @@ export default function DashboardPage({
 
                   <GarageCurrencySelector userId={userId} />
 
-                  {/* Energy Reserve — esquina superior izquierda, sola */}
                   <div className="pointer-events-none absolute left-3 top-3 z-40 sm:left-4 sm:top-4">
                     <div className="relative overflow-hidden rounded-[18px] border border-white/8 bg-slate-950/62 px-3.5 py-3 shadow-[0_0_24px_rgba(52,211,153,0.08)] backdrop-blur-md">
                       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_55%)]" />
@@ -751,7 +747,6 @@ export default function DashboardPage({
                       </div>
                     </div>
 
-                    {/* Baterías sin usar — debajo de Energy, clickeables */}
                     {unusedBatteries.length > 0 && (
                       <div className="pointer-events-auto mt-2 flex flex-col gap-1.5 max-w-[220px]">
                         {unusedBatteries.map((battery) => (
@@ -778,7 +773,6 @@ export default function DashboardPage({
                       </div>
                     )}
 
-                    {/* Pool Allocation Panel — debajo de Energy + baterías */}
                     <div className="pointer-events-auto mt-2 w-[220px]">
                       <PoolAllocationPanel
                         allocation={allocation}

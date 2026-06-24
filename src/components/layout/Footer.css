@@ -1,0 +1,137 @@
+.synapse-footer {
+  position: relative;
+  border-top: 1px solid rgba(34, 211, 238, 0.28);
+  background:
+    linear-gradient(180deg, rgba(2, 12, 27, 0.82) 0%, rgba(3, 8, 20, 0.94) 100%);
+  box-shadow:
+    0 -12px 32px rgba(2, 6, 23, 0.32),
+    inset 0 1px 0 rgba(125, 211, 252, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.synapse-footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.08), transparent 18%, transparent 82%, rgba(34, 211, 238, 0.08)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 60%);
+  pointer-events: none;
+}
+
+.synapse-footer__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem 1.4rem;
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: 0.95rem 1rem 1.05rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: rgba(186, 200, 228, 0.82);
+}
+
+.synapse-footer__brand,
+.synapse-footer__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.synapse-footer__title,
+.synapse-footer__version,
+.synapse-footer__status {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.synapse-footer__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.synapse-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.synapse-footer__link-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.synapse-footer__separator {
+  color: rgba(125, 211, 252, 0.42);
+}
+
+.synapse-footer__link {
+  color: rgba(148, 163, 184, 0.96);
+  text-decoration: none;
+  transition:
+    color 140ms ease,
+    text-shadow 140ms ease;
+}
+
+.synapse-footer__link:hover,
+.synapse-footer__link:focus-visible {
+  color: rgb(103, 232, 249);
+  text-shadow: 0 0 14px rgba(34, 211, 238, 0.32);
+  outline: none;
+}
+
+.synapse-footer__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(220, 252, 231, 0.92);
+}
+
+.synapse-footer__status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #4ade80;
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.14),
+    0 0 14px rgba(74, 222, 128, 0.75);
+  flex-shrink: 0;
+}
+
+.synapse-footer__version {
+  color: rgba(125, 211, 252, 0.78);
+}
+
+@media (max-width: 900px) {
+  .synapse-footer__inner {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .synapse-footer__brand,
+  .synapse-footer__meta {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .synapse-footer__inner {
+    gap: 0.7rem;
+    padding: 0.9rem 0.85rem 1rem;
+    font-size: 0.68rem;
+  }
+
+  .synapse-footer__meta {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}
