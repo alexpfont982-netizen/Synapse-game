@@ -105,11 +105,11 @@ function evaluateCondition(
   const threshold = effect.condition_value
 
   switch (effect.condition_op) {
-    case 'gt':  return current >  threshold
+    case 'gt': return current > threshold
     case 'gte': return current >= threshold
-    case 'lt':  return current <  threshold
+    case 'lt': return current < threshold
     case 'lte': return current <= threshold
-    default:    return false
+    default: return false
   }
 }
 

@@ -6,6 +6,7 @@ interface DashboardLayoutProps {
   topBar: ReactNode
   aside: ReactNode
   children: ReactNode
+  header?: ReactNode
 }
 
 export function DashboardLayout({
@@ -13,19 +14,32 @@ export function DashboardLayout({
   topBar,
   aside,
   children,
+  header,
 }: DashboardLayoutProps) {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
-      <div className="flex-1 px-3 py-3 sm:px-4 lg:px-5 xl:px-6 xl:py-4">
-        <div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-[196px_minmax(0,1fr)_240px] lg:gap-12">
-          <div className="lg:sticky lg:top-4 lg:self-start">{sidebar}</div>
+    <div className="relative flex min-h-screen flex-col overflow-x-hidden" style={{ minWidth: '800px' }}>
+      {header}
+      <div className="flex-1 px-2 py-2">
+        <div
+          className="grid w-full grid-cols-1 gap-2"
+          style={{
+            gridTemplateColumns: 'clamp(140px, 13%, 196px) minmax(0, 1fr) clamp(260px, 22%, 420px)',
+            gap: 'clamp(4px, 0.5%, 12px)',
+          }}
+        >
+          {/* Sidebar */}
+          <div className="sticky top-2 self-start">
+            {sidebar}
+          </div>
 
-          <main className="min-w-0 w-full space-y-3 md:space-y-4">
+          {/* Main content */}
+          <main className="min-w-0 w-full space-y-2">
             {topBar}
             {children}
           </main>
 
-          <div className="lg:sticky lg:top-4 lg:self-start lg:justify-self-end">
+          {/* Aside / Benchmark */}
+          <div className="sticky top-2 self-start w-full">
             {aside}
           </div>
         </div>

@@ -6,7 +6,6 @@ import {
   Settings,
   Store as StoreIcon,
   Trophy,
-  Wallet,
   Zap,
 } from 'lucide-react'
 import type {
@@ -16,20 +15,14 @@ import type {
 } from './types'
 
 export const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { id: 'laboratory', label: 'Laboratory', icon: Cpu, path: '/dashboard/laboratory' },
-  { id: 'equipment', label: 'Equipment', icon: Settings, path: '/dashboard/equipment' },
-  { id: 'benchmark', label: 'Benchmark', icon: Zap, path: '/dashboard/benchmark' },
-  { id: 'games', label: 'Games', icon: Gamepad2, path: '/games' },
-  { id: 'store', label: 'Store', icon: StoreIcon, path: '/dashboard/store' },
-  {
-    id: 'marketplace',
-    label: 'Marketplace',
-    icon: ArrowLeftRight,
-    path: '/dashboard/marketplace',
-  },
-  { id: 'wallet', label: 'Wallet', icon: Wallet, path: '/dashboard/wallet' },
-  { id: 'achievements', label: 'Achievements', icon: Trophy, path: '/dashboard/achievements' },
+  { id: 'dashboard',   label: 'Dashboard',   icon: LayoutDashboard, path: '/dashboard' },
+  { id: 'laboratory',  label: 'Laboratory',  icon: Cpu,             path: '/dashboard/laboratory' },
+  { id: 'equipment',   label: 'Equipment',   icon: Settings,        path: '/dashboard/equipment' },
+  { id: 'benchmark',   label: 'Benchmark',   icon: Zap,             path: '/dashboard/benchmark' },
+  { id: 'games',       label: 'Games',       icon: Gamepad2,        path: '/games' },
+  { id: 'store',       label: 'Store',       icon: StoreIcon,       path: '/dashboard/store' },
+  { id: 'marketplace', label: 'Marketplace', icon: ArrowLeftRight,  path: '/dashboard/marketplace' },
+  { id: 'achievements',label: 'Achievements',icon: Trophy,          path: '/dashboard/achievements' },
 ]
 
 export const benchmarkPanel: BenchmarkPanelData = {
@@ -72,13 +65,13 @@ export const labOverview = {
 
 export const roomIndicators: RoomIndicatorsData = {
   bottom: [
-    { label: 'Racks Active', value: '1 / 4' },
+    { label: 'Racks Active',    value: '1 / 4' },
     { label: 'Production Rate', value: '18 NCR/h' },
-    { label: 'Energy Load', value: '420W / 800W' },
-    { label: 'Temperature', value: '64°C · Stable' },
+    { label: 'Energy Load',     value: '420W / 800W' },
+    { label: 'Temperature',     value: '64°C · Stable' },
   ],
   side: [
-    { label: 'Room Efficiency', value: '72%' },
-    { label: 'Components Installed', value: '5 / 20' },
+    { label: 'Room Efficiency',       value: '72%' },
+    { label: 'Components Installed',  value: '5 / 20' },
   ],
 }

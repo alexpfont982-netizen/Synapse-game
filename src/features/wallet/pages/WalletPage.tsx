@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   useUserWallet,
   type UserWallet,
@@ -13,26 +13,25 @@ import {
   getRequiredCryptoAmount,
 } from '../utils/withdrawalCalculations'
 import PoolCalculationDebug from '../components/PoolCalculationDebug'
+import { ArrowDownToLine, History, RefreshCw, ChevronRight } from 'lucide-react'
 
 const CRYPTO_COLORS = {
-  NCR:  { bg: 'bg-emerald-950/40', text: 'text-emerald-300', border: 'border-emerald-500/30' },
-  BTC:  { bg: 'bg-orange-950/40',  text: 'text-orange-300',  border: 'border-orange-500/30'  },
-  ETH:  { bg: 'bg-purple-950/40',  text: 'text-purple-300',  border: 'border-purple-500/30'  },
-  DOGE: { bg: 'bg-yellow-950/40',  text: 'text-yellow-300',  border: 'border-yellow-500/30'  },
-  POL:  { bg: 'bg-blue-950/40',    text: 'text-blue-300',    border: 'border-blue-500/30'    },
-  BNB:  { bg: 'bg-yellow-900/40',  text: 'text-yellow-200',  border: 'border-yellow-500/30'  },
-  USDT: { bg: 'bg-cyan-950/40',    text: 'text-cyan-200',    border: 'border-cyan-500/30'    },
-} as const satisfies Record<string, { bg: string; text: string; border: string }>
+  NCR:  { bg: 'bg-emerald-950/40', text: 'text-emerald-300', border: 'border-emerald-500/30', accent: '#34d399' },
+  BTC:  { bg: 'bg-orange-950/40',  text: 'text-orange-300',  border: 'border-orange-500/30',  accent: '#fb923c' },
+  ETH:  { bg: 'bg-purple-950/40',  text: 'text-purple-300',  border: 'border-purple-500/30',  accent: '#c084fc' },
+  DOGE: { bg: 'bg-yellow-950/40',  text: 'text-yellow-300',  border: 'border-yellow-500/30',  accent: '#fde047' },
+  POL:  { bg: 'bg-blue-950/40',    text: 'text-blue-300',    border: 'border-blue-500/30',    accent: '#60a5fa' },
+  BNB:  { bg: 'bg-yellow-900/40',  text: 'text-yellow-200',  border: 'border-yellow-500/30',  accent: '#fef08a' },
+  USDT: { bg: 'bg-cyan-950/40',    text: 'text-cyan-200',    border: 'border-cyan-500/30',    accent: '#67e8f9' },
+} as const satisfies Record<string, { bg: string; text: string; border: string; accent: string }>
 
 type CryptoCode = keyof typeof CRYPTO_COLORS
-type CryptoColor = (typeof CRYPTO_COLORS)[keyof typeof CRYPTO_COLORS]
 type WalletBalanceKey = Exclude<keyof UserWallet, 'id' | 'updated_at'>
 
 interface CryptoBalance {
   name: CryptoCode
   key: WalletBalanceKey
   balance: number
-  color: CryptoColor
 }
 
 interface WalletPageProps {
@@ -52,29 +51,27 @@ function formatDateTime(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
-function getCryptoColor(crypto: string): CryptoColor {
-  return CRYPTO_COLORS[crypto as CryptoCode] ?? CRYPTO_COLORS.NCR
-}
+const CRYPTO_LIST: { name: CryptoCode; key: WalletBalanceKey }[] = [
+  { name: 'NCR',  key: 'ncr_balance'  },
+  { name: 'BTC',  key: 'btc_balance'  },
+  { name: 'ETH',  key: 'eth_balance'  },
+  { name: 'DOGE', key: 'doge_balance' },
+  { name: 'POL',  key: 'pol_balance'  },
+  { name: 'BNB',  key: 'bnb_balance'  },
+  { name: 'USDT', key: 'usdt_balance' },
+]
+
+type TabType = 'history' | 'withdrawals'
 
 export default function WalletPage({ userId }: WalletPageProps) {
-  const {
-    wallet,
-    loading: walletLoading,
-    error: walletError,
-    refresh: refreshWallet,
-  } = useUserWallet(userId)
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoCode | null>(null)
+  const [activeTab, setActiveTab] = useState<TabType>('history')
 
-  const {
-    payouts,
-    loading: payoutsLoading,
-    error: payoutsError,
-    refresh: refreshPayouts,
-  } = usePoolPayoutHistory(userId, 50)
-
+  const { wallet, loading: walletLoading, refresh: refreshWallet } = useUserWallet(userId)
+  const { payouts, loading: payoutsLoading, refresh: refreshPayouts } = usePoolPayoutHistory(userId, 100)
   const {
     pricesBySymbol,
     loading: pricesLoading,
-    error: pricesError,
     refresh: refreshPrices,
     cryptoPricesLoaded,
     zeroPriceDetected,
@@ -83,33 +80,13 @@ export default function WalletPage({ userId }: WalletPageProps) {
 
   const cryptoBalances = useMemo<CryptoBalance[]>(() => {
     if (!wallet) return []
-    return [
-      { name: 'NCR',  key: 'ncr_balance',  balance: wallet.ncr_balance,  color: CRYPTO_COLORS.NCR  },
-      { name: 'BTC',  key: 'btc_balance',  balance: wallet.btc_balance,  color: CRYPTO_COLORS.BTC  },
-      { name: 'ETH',  key: 'eth_balance',  balance: wallet.eth_balance,  color: CRYPTO_COLORS.ETH  },
-      { name: 'DOGE', key: 'doge_balance', balance: wallet.doge_balance, color: CRYPTO_COLORS.DOGE },
-      { name: 'POL',  key: 'pol_balance',  balance: wallet.pol_balance,  color: CRYPTO_COLORS.POL  },
-      { name: 'BNB',  key: 'bnb_balance',  balance: wallet.bnb_balance,  color: CRYPTO_COLORS.BNB  },
-      { name: 'USDT', key: 'usdt_balance', balance: wallet.usdt_balance, color: CRYPTO_COLORS.USDT },
-    ]
+    return CRYPTO_LIST.map(c => ({ name: c.name, key: c.key, balance: wallet[c.key] as number }))
   }, [wallet])
-
-  const hasWalletRow = wallet !== null
-  const walletUnavailable = !walletLoading && !hasWalletRow
-  const hasWalletBalances = cryptoBalances.some((c) => c.balance > 0)
-  const showBalanceSkeleton = walletLoading && !hasWalletRow
-
-  const walletStatusTone = walletError
-    ? 'border-red-500/30 bg-red-500/10 text-red-200'
-    : walletUnavailable
-      ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-      : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-200'
 
   const totalEarned = useMemo(() => {
     const grouped = new Map<string, number>()
-    payouts.forEach((payout: PoolPayout) => {
-      const current = grouped.get(payout.crypto) || 0
-      grouped.set(payout.crypto, current + payout.reward_amount)
+    payouts.forEach((p: PoolPayout) => {
+      grouped.set(p.crypto, (grouped.get(p.crypto) || 0) + p.reward_amount)
     })
     return grouped
   }, [payouts])
@@ -118,10 +95,31 @@ export default function WalletPage({ userId }: WalletPageProps) {
     await Promise.all([refreshWallet(), refreshPayouts(), refreshPrices()])
   }
 
+  const selected = selectedCrypto
+    ? cryptoBalances.find(c => c.name === selectedCrypto) ?? null
+    : null
+
+  const selectedColor = selectedCrypto ? CRYPTO_COLORS[selectedCrypto] : null
+  const selectedPrecision = selectedCrypto ? getCryptoPrecision(selectedCrypto) : 2
+  const selectedPriceEntry = selectedCrypto ? pricesBySymbol[selectedCrypto] : null
+  const selectedMinWithdrawal = selectedPriceEntry?.minWithdrawal ?? 0
+  const selectedIsReady = selected
+    ? canWithdraw(selected.balance, null, 0, selectedCrypto!, selectedMinWithdrawal)
+    : false
+  const selectedRequired = selected
+    ? getRequiredCryptoAmount(0, null, selectedCrypto!, selectedMinWithdrawal)
+    : null
+  const selectedEarned = selectedCrypto ? (totalEarned.get(selectedCrypto) || 0) : 0
+
+  const filteredPayouts = selectedCrypto
+    ? payouts.filter((p: PoolPayout) => p.crypto === selectedCrypto)
+    : payouts
+
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 space-y-8">
+    <div className="w-full max-w-6xl mx-auto p-6">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-100">Wallets</h1>
           <p className="mt-1 text-sm text-slate-400">Your crypto balances and earning history</p>
@@ -129,224 +127,238 @@ export default function WalletPage({ userId }: WalletPageProps) {
         <button
           onClick={handleRefresh}
           disabled={walletLoading || payoutsLoading || pricesLoading}
-          className="px-4 py-2 rounded-lg border border-slate-600/50 bg-slate-900/50 text-sm font-medium text-slate-300 transition hover:bg-slate-800/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-600/50 bg-slate-900/50 text-sm font-medium text-slate-300 transition hover:bg-slate-800/50 disabled:opacity-50"
         >
-          {walletLoading || payoutsLoading || pricesLoading ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw className={`h-4 w-4 ${(walletLoading || payoutsLoading) ? 'animate-spin' : ''}`} />
+          Refresh
         </button>
       </div>
 
-      {/* Wallet status banner */}
-      <div className={`rounded-xl border px-4 py-3 text-sm ${walletStatusTone}`}>
-        {walletLoading && !hasWalletRow ? (
-          <p>Loading wallet balances...</p>
-        ) : walletError ? (
-          <p>Wallet data could not be loaded: {walletError}</p>
-        ) : walletUnavailable ? (
-          <p>No wallet record found for this user.</p>
-        ) : hasWalletBalances ? (
-          <p>Wallet balances are live and ready for withdrawal validation.</p>
-        ) : (
-          <p>Wallet loaded successfully. All balances are currently at zero.</p>
-        )}
-      </div>
+      <div className="flex gap-6">
 
-      {payoutsError && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          Payout history could not be loaded: {payoutsError}
+        {/* Left — Crypto list */}
+        <div className="w-64 shrink-0 space-y-1.5">
+          {walletLoading ? (
+            Array.from({ length: 7 }, (_, i) => (
+              <div key={i} className="h-14 animate-pulse rounded-[14px] bg-slate-800/40" />
+            ))
+          ) : (
+            cryptoBalances.map(crypto => {
+              const color = CRYPTO_COLORS[crypto.name]
+              const precision = getCryptoPrecision(crypto.name)
+              const isSelected = selectedCrypto === crypto.name
+              const priceEntry = pricesBySymbol[crypto.name]
+              const minW = priceEntry?.minWithdrawal ?? 0
+              const isReady = canWithdraw(crypto.balance, null, 0, crypto.name, minW)
+
+              return (
+                <button
+                  key={crypto.name}
+                  type="button"
+                  onClick={() => setSelectedCrypto(prev => prev === crypto.name ? null : crypto.name)}
+                  className={`w-full flex items-center justify-between rounded-[14px] border px-3.5 py-3 text-left transition ${
+                    isSelected
+                      ? `${color.border} ${color.bg}`
+                      : 'border-white/[0.06] bg-slate-900/40 hover:border-white/[0.12] hover:bg-slate-800/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-[11px] font-black"
+                      style={{ background: `${CRYPTO_COLORS[crypto.name].accent}22`, color: CRYPTO_COLORS[crypto.name].accent }}
+                    >
+                      {crypto.name.slice(0, 1)}
+                    </div>
+                    <div>
+                      <p className={`text-[12px] font-bold ${isSelected ? color.text : 'text-slate-200'}`}>
+                        {crypto.name}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-mono">
+                        {crypto.balance.toFixed(precision)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {isReady && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+                    )}
+                    <ChevronRight className={`h-3.5 w-3.5 transition ${isSelected ? color.text : 'text-slate-600'}`} />
+                  </div>
+                </button>
+              )
+            })
+          )}
         </div>
-      )}
 
-      {pricesError && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          {pricesError}
-        </div>
-      )}
-
-      {/* Wallet Balances Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {showBalanceSkeleton ? (
-          Array.from({ length: 3 }, (_, i) => (
-            <div key={`skel-${i}`} className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
-              <div className="h-4 w-20 animate-pulse rounded bg-slate-700/70" />
-              <div className="mt-6 h-8 w-32 animate-pulse rounded bg-slate-700/60" />
+        {/* Right — Detail panel */}
+        <div className="flex-1 min-w-0">
+          {!selectedCrypto ? (
+            <div className="flex h-64 items-center justify-center rounded-[20px] border border-white/[0.06] bg-slate-900/40 text-slate-500 text-sm">
+              Select a currency to view details
             </div>
-          ))
-        ) : hasWalletRow ? (
-          cryptoBalances.map((crypto) => {
-            const priceEntry = pricesBySymbol[crypto.name]
-            const minWithdrawal = priceEntry?.minWithdrawal ?? 0
-            const isWithdrawReady = canWithdraw(
-              crypto.balance,
-              null,
-              0,
-              crypto.name,
-              minWithdrawal,
-            )
-            const requiredAmount = getRequiredCryptoAmount(
-              0,
-              null,
-              crypto.name,
-              minWithdrawal,
-            )
-            const precision = getCryptoPrecision(crypto.name)
+          ) : (
+            <div className="space-y-4">
 
-            const withdrawLabel = isWithdrawReady
-              ? 'Withdraw validation ready'
-              : `Min ${requiredAmount?.toFixed(precision) ?? '—'} ${crypto.name} not met`
+              {/* Balance card */}
+              <div className={`rounded-[20px] border ${selectedColor!.border} ${selectedColor!.bg} p-5`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${selectedColor!.text}`}>
+                      {selectedCrypto}
+                    </p>
+                    <p className={`mt-1 text-4xl font-black ${selectedColor!.text}`}>
+                      {selected?.balance.toFixed(selectedPrecision)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Total earned: <span className={selectedColor!.text}>{selectedEarned.toFixed(selectedPrecision)}</span>
+                    </p>
+                  </div>
 
-            return (
-              <div
-                key={crypto.name}
-                className={`rounded-lg border ${crypto.color.border} ${crypto.color.bg} p-4 backdrop-blur-sm`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <span className={`text-sm font-bold uppercase tracking-wider ${crypto.color.text}`}>
-                    {crypto.name}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    Earned:{' '}
-                    <span className={crypto.color.text}>
-                      {(totalEarned.get(crypto.name) || 0).toFixed(
-                        crypto.name === 'BTC' ? 8 : crypto.name === 'ETH' ? 6 : 2
-                      )}
-                    </span>
-                  </span>
+                  {/* Withdraw button */}
+                  <button
+                    type="button"
+                    disabled
+                    className={`flex items-center gap-2 rounded-[14px] border px-4 py-2.5 text-[12px] font-semibold transition disabled:cursor-not-allowed ${
+                      selectedIsReady
+                        ? `${selectedColor!.border} ${selectedColor!.bg} ${selectedColor!.text} disabled:opacity-90`
+                        : 'border-slate-600/30 bg-slate-900/30 text-slate-500 disabled:opacity-60'
+                    }`}
+                  >
+                    <ArrowDownToLine className="h-4 w-4" />
+                    {selectedIsReady ? 'Withdraw' : 'Withdraw'}
+                  </button>
                 </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-slate-400 mb-1">Current Balance</p>
-                    <p className={`text-2xl font-bold ${crypto.color.text}`}>
-                      {crypto.balance.toFixed(precision)}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1.5 text-xs text-slate-300">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-400">Min Withdraw</span>
-                      <span className={crypto.color.text}>
-                        {requiredAmount !== null
-                          ? `${requiredAmount.toFixed(precision)} ${crypto.name}`
-                          : '—'}
+                {/* Progress bar */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-[11px] mb-1.5">
+                    <span className="text-slate-400">
+                      Min withdrawal: <span className={selectedColor!.text}>
+                        {selectedRequired?.toFixed(selectedPrecision)} {selectedCrypto}
                       </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-400">Progress</span>
-                      <span className="text-slate-200">
-                        {requiredAmount
-                          ? `${Math.min(100, Math.round((crypto.balance / requiredAmount) * 100))}%`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-400">Last updated</span>
-                      <span className="text-slate-200">
-                        {formatDateTime(priceEntry?.updatedAt)}
-                      </span>
-                    </div>
+                    </span>
+                    <span className="text-slate-300">
+                      {selectedRequired
+                        ? `${Math.min(100, Math.round(((selected?.balance ?? 0) / selectedRequired) * 100))}%`
+                        : '—'}
+                    </span>
                   </div>
-
-                  {/* Progress bar */}
-                  {requiredAmount && requiredAmount > 0 && (
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800/80">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(100, (crypto.balance / requiredAmount) * 100)}%`,
-                          background: isWithdrawReady
-                            ? 'linear-gradient(90deg, #059669, #34d399)'
-                            : 'linear-gradient(90deg, #1e40af, #3b82f6)',
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1.5 pt-1">
-                    <button
-                      type="button"
-                      disabled
-                      className={`w-full px-3 py-1.5 rounded-md border text-xs font-medium transition disabled:cursor-not-allowed ${
-                        isWithdrawReady
-                          ? 'border-emerald-500/30 bg-emerald-950/30 text-emerald-200 disabled:opacity-80'
-                          : 'border-slate-600/30 bg-slate-900/30 text-slate-300 disabled:opacity-60'
-                      }`}
-                    >
-                      {withdrawLabel}
-                    </button>
-                    <p className="text-[10px] text-slate-500">
-                      Real withdrawals coming soon.
-                    </p>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800/80">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: selectedRequired
+                          ? `${Math.min(100, ((selected?.balance ?? 0) / selectedRequired) * 100)}%`
+                          : '0%',
+                        background: selectedIsReady
+                          ? `linear-gradient(90deg, ${selectedColor!.accent}88, ${selectedColor!.accent})`
+                          : 'linear-gradient(90deg, #1e40af, #3b82f6)',
+                      }}
+                    />
                   </div>
+                  <p className="mt-1.5 text-[10px] text-slate-500">
+                    Last updated: {formatDateTime(selectedPriceEntry?.updatedAt)}
+                  </p>
                 </div>
               </div>
-            )
-          })
-        ) : (
-          <div className="lg:col-span-3 rounded-xl border border-slate-700/50 bg-slate-900/40 p-6 text-sm text-slate-300">
-            No balance rows available yet for this user.
-          </div>
-        )}
+
+              {/* Tabs */}
+              <div className="flex gap-1 rounded-[14px] border border-white/[0.06] bg-slate-900/40 p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('history')}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-[10px] py-2 text-[12px] font-semibold transition ${
+                    activeTab === 'history'
+                      ? 'bg-slate-800 text-slate-100'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  History
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('withdrawals')}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-[10px] py-2 text-[12px] font-semibold transition ${
+                    activeTab === 'withdrawals'
+                      ? 'bg-slate-800 text-slate-100'
+                      : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  <ArrowDownToLine className="h-3.5 w-3.5" />
+                  Withdrawals
+                </button>
+              </div>
+
+              {/* Tab content */}
+              {activeTab === 'history' && (
+                <div className="rounded-[16px] border border-white/[0.06] bg-slate-900/40 overflow-hidden">
+                  {payoutsLoading ? (
+                    <div className="p-8 text-center text-slate-500 text-sm">Loading history...</div>
+                  ) : filteredPayouts.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 text-sm">
+                      No earnings yet for {selectedCrypto}. Keep your racks running!
+                    </div>
+                  ) : (
+                    <div className="custom-scrollbar overflow-x-auto max-h-80 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-slate-900/90 backdrop-blur-sm">
+                          <tr className="border-b border-slate-700/50">
+                            <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">Amount</th>
+                            <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400">TFlops</th>
+                            <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400">Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredPayouts.map((payout: PoolPayout) => {
+                            const date = payout.created_at ? new Date(payout.created_at) : null
+                            const precision = payout.crypto === 'BTC' ? 8
+                              : payout.crypto === 'ETH' ? 8
+                              : payout.crypto === 'BNB' ? 8
+                              : payout.crypto === 'DOGE' ? 6
+                              : payout.crypto === 'POL' ? 6
+                              : payout.crypto === 'NCR' ? 4
+                              : 8
+                            return (
+                              <tr key={payout.id} className="border-b border-slate-700/20 hover:bg-slate-800/30 transition">
+                                <td className="px-4 py-2.5">
+                                  <span className={`font-mono font-semibold ${selectedColor!.text}`}>
+                                    +{payout.reward_amount.toFixed(precision)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-400 text-[12px]">
+                                  {payout.user_tflops.toFixed(1)} TF
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-500 text-[11px]">
+                                  {date ? date.toLocaleString() : '—'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'withdrawals' && (
+                <div className="rounded-[16px] border border-white/[0.06] bg-slate-900/40 p-8 text-center text-slate-500 text-sm">
+                  No withdrawals yet for {selectedCrypto}.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <PoolCalculationDebug
-        userId={userId}
-        cryptoPricesLoaded={cryptoPricesLoaded}
-        zeroPriceDetected={zeroPriceDetected}
-        withdrawalMinimumCalculationReady={withdrawalMinimumCalculationReady}
-      />
-
-      {/* Payout History */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-100">Recent Payouts</h2>
-
-        {payoutsLoading ? (
-          <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-8 text-center text-slate-400">
-            Loading history...
-          </div>
-        ) : payouts.length === 0 ? (
-          <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-8 text-center text-slate-400">
-            No payouts yet. Keep your racks running to earn!
-          </div>
-        ) : (
-          <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 overflow-hidden">
-            <div className="custom-scrollbar overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700/50">
-                    <th className="px-4 py-3 text-left font-semibold text-slate-400">Crypto</th>
-                    <th className="px-4 py-3 text-right font-semibold text-slate-400">Amount</th>
-                    <th className="px-4 py-3 text-right font-semibold text-slate-400">TFlops</th>
-                    <th className="px-4 py-3 text-right font-semibold text-slate-400">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payouts.map((payout: PoolPayout) => {
-                    const color = getCryptoColor(payout.crypto)
-                    const date = payout.created_at ? new Date(payout.created_at) : null
-                    const precision = payout.crypto === 'BTC' ? 8 : payout.crypto === 'ETH' ? 6 : 2
-
-                    return (
-                      <tr key={payout.id} className="border-b border-slate-700/25 hover:bg-slate-800/30 transition">
-                        <td className="px-4 py-3">
-                          <span className={`font-semibold ${color.text}`}>{payout.crypto}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-200">
-                          +{payout.reward_amount.toFixed(precision)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-400">
-                          {payout.user_tflops.toFixed(1)} TF
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-500 text-xs">
-                          {date ? date.toLocaleString() : 'Unknown'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      <div className="mt-8">
+        <PoolCalculationDebug
+          userId={userId}
+          cryptoPricesLoaded={cryptoPricesLoaded}
+          zeroPriceDetected={zeroPriceDetected}
+          withdrawalMinimumCalculationReady={withdrawalMinimumCalculationReady}
+        />
       </div>
     </div>
   )

@@ -29,46 +29,38 @@ interface UserWalletRow {
 type UserWalletUpdatePayload = RealtimePostgresUpdatePayload<UserWalletRow>
 
 function toBalance(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
+  if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string') {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : 0
   }
-
   return 0
 }
 
 function mapUserWalletRow(row: UserWalletRow | null | undefined): UserWallet | null {
-  if (!row || typeof row.id !== 'string') {
-    return null
-  }
-
+  if (!row || typeof row.id !== 'string') return null
   return {
     id: row.id,
-    ncr_balance: toBalance(row.ncr_balance),
-    btc_balance: toBalance(row.btc_balance),
-    eth_balance: toBalance(row.eth_balance),
+    ncr_balance:  toBalance(row.ncr_balance),
+    btc_balance:  toBalance(row.btc_balance),
+    eth_balance:  toBalance(row.eth_balance),
     doge_balance: toBalance(row.doge_balance),
-    pol_balance: toBalance(row.pol_balance),
-    bnb_balance: toBalance(row.bnb_balance),
+    pol_balance:  toBalance(row.pol_balance),
+    bnb_balance:  toBalance(row.bnb_balance),
     usdt_balance: toBalance(row.usdt_balance),
-    updated_at:
-      typeof row.updated_at === 'string'
-        ? row.updated_at
-        : new Date(0).toISOString(),
+    updated_at: typeof row.updated_at === 'string' ? row.updated_at : new Date(0).toISOString(),
   }
 }
 
 export function useUserWallet(userId: string) {
-  const [wallet, setWallet] = useState<UserWallet | null>(null)
+  const [wallet, setWallet]   = useState<UserWallet | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]     = useState<string | null>(null)
 
   useEffect(() => {
     if (!userId) return
+
+    let cancelled = false
 
     const fetchWallet = async () => {
       try {
@@ -79,26 +71,31 @@ export function useUserWallet(userId: string) {
           .eq('id', userId)
           .single()
 
+        if (cancelled) return
         if (err) throw err
+
         const nextWallet = mapUserWalletRow(data as UserWalletRow | null)
-        if (!nextWallet) {
-          throw new Error('Wallet row is missing required fields')
-        }
+        if (!nextWallet) throw new Error('Wallet row is missing required fields')
+
         setWallet(nextWallet)
         setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error fetching wallet')
-        setWallet(null)
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Error fetching wallet')
+          setWallet(null)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchWallet()
 
-    // Subscribe to real-time updates
+    // Canal único por instancia para evitar conflictos de suscripción duplicada
+    const channelName = `wallet:${userId}:${Math.random().toString(36).slice(2)}`
+
     const subscription = supabase
-      .channel(`wallet:${userId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -108,15 +105,15 @@ export function useUserWallet(userId: string) {
           filter: `id=eq.${userId}`,
         },
         (payload: UserWalletUpdatePayload) => {
+          if (cancelled) return
           const nextWallet = mapUserWalletRow(payload.new)
-          if (nextWallet) {
-            setWallet(nextWallet)
-          }
-        }
+          if (nextWallet) setWallet(nextWallet)
+        },
       )
       .subscribe()
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
     }
   }, [userId])
@@ -131,9 +128,7 @@ export function useUserWallet(userId: string) {
         .single()
       if (err) throw err
       const nextWallet = mapUserWalletRow(data as UserWalletRow | null)
-      if (!nextWallet) {
-        throw new Error('Wallet row is missing required fields')
-      }
+      if (!nextWallet) throw new Error('Wallet row is missing required fields')
       setWallet(nextWallet)
     } catch (err) {
       console.error('Failed to refresh wallet:', err)

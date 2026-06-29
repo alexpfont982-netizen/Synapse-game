@@ -1,4 +1,4 @@
-import { BrainCircuit, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { NavItem } from '../types'
 
 interface SidebarProps {
@@ -54,19 +54,6 @@ function SidebarItem({ item, active, onClick }: SidebarItemProps) {
 export function Sidebar({ items, activeItem, onSelect }: SidebarProps) {
   return (
     <aside className="surface-panel rounded-[24px] p-3 md:p-3.5">
-      <div className="mb-3.5 flex items-start gap-2.5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.12)]">
-          <BrainCircuit className="h-[18px] w-[18px]" />
-        </div>
-
-        <div className="min-w-0">
-          <p className="font-display text-[1rem] tracking-[0.14em] text-white">
-            Synapse
-          </p>
-          <p className="mt-0.5 text-[12px] text-slate-400">World Grid</p>
-        </div>
-      </div>
-
       <nav className="space-y-1.5" aria-label="Navegacion principal del dashboard">
         {items.map((item) => (
           <SidebarItem
@@ -78,12 +65,7 @@ export function Sidebar({ items, activeItem, onSelect }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="mt-3 flex items-center gap-2 rounded-[16px] border border-violet-400/16 bg-violet-500/[0.05] px-2.5 py-2 text-[11px] text-slate-300">
-        <span className="h-2 w-2 rounded-full bg-violet-300 shadow-[0_0_10px_rgba(196,181,253,0.9)]" />
-        <span className="uppercase tracking-[0.2em] text-violet-100/90">
-          Mock data
-        </span>
-      </div>
+
     </aside>
   )
 }
