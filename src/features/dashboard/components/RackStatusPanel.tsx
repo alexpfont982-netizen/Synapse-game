@@ -16,14 +16,16 @@ export interface RackBuff {
 }
 
 export interface RackStatusStats {
-  powerLoad:      number;
-  temperature:    number;
-  stability:      number;
-  aiOutput:       number;
-  installedCount: number;
-  capacity:       number;
-  slotFill:       SlotFill[];
-  events?:        { label: string; value: string }[];
+  powerLoad:               number;
+  temperature:             number;
+  stability:               number;
+  aiOutput:                number;
+  synapsepower?:           number;   // SP Base
+  synapsepowerEffective?:  number;   // SP Efectivo (con buffs/penalties)
+  installedCount:          number;
+  capacity:                number;
+  slotFill:                SlotFill[];
+  events?:                 { label: string; value: string }[];
 }
 
 interface RackStatusPanelProps extends RackStatusStats {
@@ -46,6 +48,9 @@ function slotTone(filled: number, total: number) {
   if (total === 0) return "text-slate-500";
   return filled >= total ? "text-emerald-400" : "text-cyan-300";
 }
+function spTone(sp: number) {
+  return sp > 5000 ? "text-emerald-300" : sp > 1000 ? "text-cyan-300" : "text-violet-300";
+}
 
 // ── Subcomponents ─────────────────────────────────────────────────
 
@@ -64,12 +69,9 @@ function StatTile({ label, value, unit, tone }: {
 }
 
 // ── Main component ────────────────────────────────────────────────
-// Nota: las secciones de Buffs/Penalties/Warnings/Combos viven ahora en
-// DashboardPage.tsx (RackZoomGrid) como columnas independientes a la
-// derecha. Este panel solo muestra los stats base del rack y slot fill.
 
 export default function RackStatusPanel({
-  powerLoad, temperature, stability, aiOutput,
+  powerLoad, temperature, stability, aiOutput, synapsepower, synapsepowerEffective,
   installedCount, capacity, slotFill, events,
   variant = "lab",
   className = "",
@@ -77,17 +79,64 @@ export default function RackStatusPanel({
 
   return (
     <div className={`flex w-full flex-col gap-3 rounded-lg border border-slate-700/60 bg-slate-950/60 p-3 backdrop-blur-sm ${className}`}>
-      
+
       <h3 className="text-xs font-semibold uppercase tracking-widest text-cyan-300/80">
         Rack Status
       </h3>
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-2">
+
+        {/* SP Base */}
+        {synapsepower !== undefined && (
+          <div className="rounded-md border border-violet-500/30 bg-violet-950/20 px-3 py-2">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-400/80">
+              SP Base
+            </div>
+            <div className={`mt-0.5 text-lg font-black tabular-nums ${spTone(synapsepower)}`}>
+              {synapsepower.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              <span className="ml-1 text-xs font-normal text-violet-400/60">SP</span>
+            </div>
+            <div className="mt-1 text-[9px] text-slate-500">
+              GPU 60% · RAM 20% · Storage 10%
+            </div>
+          </div>
+        )}
+
+        {/* SP Efectivo */}
+        {synapsepowerEffective !== undefined && (
+          <div className={`rounded-md border px-3 py-2 ${
+            synapsepowerEffective > (synapsepower ?? 0)
+              ? 'border-emerald-500/30 bg-emerald-950/20'
+              : synapsepowerEffective < (synapsepower ?? 0)
+                ? 'border-red-500/30 bg-red-950/20'
+                : 'border-slate-700/60 bg-slate-900/40'
+          }`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400/80">
+              SP Efectivo
+            </div>
+            <div className={`mt-0.5 text-lg font-black tabular-nums ${
+              synapsepowerEffective > (synapsepower ?? 0) ? 'text-emerald-300'
+              : synapsepowerEffective < (synapsepower ?? 0) ? 'text-red-300'
+              : 'text-slate-300'
+            }`}>
+              {synapsepowerEffective.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              <span className="ml-1 text-xs font-normal text-slate-500">SP</span>
+            </div>
+            <div className="mt-1 text-[9px] text-slate-500">
+              {synapsepowerEffective > (synapsepower ?? 0)
+                ? `+${((synapsepowerEffective / (synapsepower ?? 1) - 1) * 100).toFixed(1)}% from buffs`
+                : synapsepowerEffective < (synapsepower ?? 0)
+                  ? `-${((1 - synapsepowerEffective / (synapsepower ?? 1)) * 100).toFixed(1)}% from penalties`
+                  : 'No active buffs/penalties'}
+            </div>
+          </div>
+        )}
+
         <StatTile label="Power Load"   value={powerLoad}           unit="W"  tone={powerTone(powerLoad)} />
         <StatTile label="Temperature"  value={temperature}         unit="°C" tone={tempTone(temperature)} />
         <StatTile label="Stability"    value={stability}           unit="%"  tone={stabilityTone(stability)} />
-        <StatTile label="AI Output"    value={aiOutput.toFixed(1)} unit="TF" tone="text-violet-300" />
+        <StatTile label="AI Output"    value={aiOutput.toFixed(1)} unit="TF" tone="text-slate-400" />
         <StatTile
           label="Components"
           value={`${installedCount}/${capacity}`}

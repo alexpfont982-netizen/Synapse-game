@@ -45,12 +45,22 @@ const CRYPTO_ICONS: Record<string, string> = {
 }
 
 const CRYPTO_COLORS: Record<string, string> = {
-  NCR:  'text-blue-400',
+  NCR:  'text-emerald-400',
   BTC:  'text-amber-400',
   ETH:  'text-violet-400',
   DOGE: 'text-yellow-400',
   POL:  'text-purple-400',
   BNB:  'text-yellow-300',
+}
+
+// ── Tarea de IA y justificación por pool ─────────────────────────
+const POOL_TASKS: Record<string, { task: string; description: string; icon: string }> = {
+  NCR:  { task: 'General Processing',      description: 'Native game currency — base AI workloads',         icon: '⚙️' },
+  BTC:  { task: 'Contract Verification',   description: 'Securing the world\'s most trusted network',       icon: '🔐' },
+  ETH:  { task: 'Smart Contract AI',       description: 'Powering decentralized application logic',         icon: '📜' },
+  BNB:  { task: 'Fast Inference',          description: 'High-speed AI inference for rapid transactions',   icon: '⚡' },
+  DOGE: { task: 'AI Micro-tasks',          description: 'High volume, lightweight processing jobs',         icon: '🐕' },
+  POL:  { task: 'Data Analysis',           description: 'Layer-2 polygon data processing & analytics',     icon: '📊' },
 }
 
 function formatCycleAmount(amount: number, crypto: string): string {
@@ -63,19 +73,8 @@ function formatCycleAmount(amount: number, crypto: string): string {
   return `${amount.toFixed(8)} ${crypto}`
 }
 
-function formatTflops(n: number): string {
-  // Show 1 decimal to avoid rounding accumulation across pools
+function formatSP(n: number): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-}
-
-// Calcula recompensa estimada del jugador en esa pool
-function estimateReward(
-  playerTflops: number,
-  poolTotalTflops: number,
-  cycleAmount: number,
-): number {
-  if (poolTotalTflops <= 0) return 0
-  return (playerTflops / poolTotalTflops) * cycleAmount
 }
 
 function usePoolStats() {
@@ -151,10 +150,10 @@ function getPctForCrypto(allocation: PlayerAllocation, crypto: string): number {
 export function BenchmarkPanel({ benchmark: _benchmark, performanceScore: _performanceScore = 0, userId, roomTFlops }: BenchmarkPanelProps) {
   const { pools, totalPlayers, totalTflops, loading } = usePoolStats()
   const allocation = usePlayerAllocation(userId)
-  // Use roomTFlops from dashboard if available and loaded, fallback to Supabase total
-  const displayTflops = (roomTFlops && roomTFlops > 0) ? roomTFlops : totalTflops
+  // displaySP debe ser SIEMPRE el SP real del jugador actual (roomTFlops),
+  // nunca el total global de Supabase — si no hay rooms aún, es 0.
+  const displaySP = roomTFlops ?? 0
 
-  // Pools donde el jugador tiene % > 0
   const activePools = pools.filter(p =>
     allocation ? getPctForCrypto(allocation, p.crypto) > 0 : false
   )
@@ -193,43 +192,80 @@ export function BenchmarkPanel({ benchmark: _benchmark, performanceScore: _perfo
             <div className="mt-4 space-y-2">
               <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Your pools</p>
               {activePools.map(pool => {
-                const pct = allocation ? getPctForCrypto(allocation, pool.crypto) : 0
-                // Player TFlops = their share of total room power
-                const playerTflops = displayTflops * (pct / 100)
-                // Use playerTflops as pool total since we know our real-time contribution.
-                // When more players join, pool.total_tflops from Supabase will reflect all players.
-                // We take the max to avoid over-estimating when stale data is lower.
-                const poolTflops = Math.max(pool.total_tflops, playerTflops)
-                const reward = playerTflops > 0 && poolTflops > 0
-                  ? (playerTflops / poolTflops) * pool.cycle_amount
-                  : 0
+                const pct        = allocation ? getPctForCrypto(allocation, pool.crypto) : 0
+                const playerSP   = displaySP * (pct / 100)
+                // poolSP = el mayor entre el total reportado por Supabase (incluye a TODOS
+                // los jugadores del último ciclo de 15 min) y mi propio SP — así nunca
+                // subestimamos el denominador cuando los datos están desactualizados.
+                // Cuando otros jugadores entran/salen, pool.total_tflops cambia en el
+                // próximo ciclo y este share se recalcula solo, sin tocar el código.
+                const poolSP     = pool.participants_count <= 1
+                  ? playerSP  // único jugador → 100% garantizado
+                  : Math.max(pool.total_tflops, playerSP)
+                const shareRatio = playerSP > 0 && poolSP > 0 ? (playerSP / poolSP) * 100 : 0
+                const reward     = playerSP > 0 && poolSP > 0 ? (playerSP / poolSP) * pool.cycle_amount : 0
+                const taskInfo   = POOL_TASKS[pool.crypto]
 
                 return (
-                  <div key={pool.crypto} className="rounded-[16px] border border-cyan-400/15 bg-slate-950/60 px-3 py-2.5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-bold ${CRYPTO_COLORS[pool.crypto]}`}>
+                  <div key={pool.crypto} className="rounded-[16px] border border-white/[0.07] bg-slate-950/60 overflow-hidden">
+
+                    {/* Task header */}
+                    <div className="flex items-center gap-2 border-b border-white/[0.05] bg-slate-900/40 px-3 py-2">
+                      <span className="text-[13px]">{taskInfo?.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                          AI Task
+                        </p>
+                        <p className="text-[11px] font-bold text-slate-100 truncate">
+                          {taskInfo?.task ?? pool.crypto}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`text-[13px] font-bold ${CRYPTO_COLORS[pool.crypto]}`}>
                           {CRYPTO_ICONS[pool.crypto]}
                         </span>
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-200">
-                          {pool.crypto} Pool
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-200">
+                          {pool.crypto}
                         </span>
-    
+                        <span className="text-[9px] uppercase tracking-widest text-emerald-300 border border-emerald-400/25 bg-emerald-400/10 rounded-full px-1.5 py-0.5">
+                          Active
+                        </span>
                       </div>
-                      <span className="text-[9px] uppercase tracking-widest text-emerald-300 border border-emerald-400/25 bg-emerald-400/10 rounded-full px-2 py-0.5">
-                        Active
-                      </span>
                     </div>
-                    <div className="grid grid-cols-[1fr_1.8fr] gap-1.5">
-                      <div className="rounded-[10px] border border-cyan-400/10 bg-slate-950/50 px-2 py-1.5">
-                        <p className="text-[8px] uppercase tracking-[0.14em] text-slate-500 mb-0.5">My TFlops</p>
-                        <p className="text-[14px] font-semibold text-white">{formatTflops(playerTflops)}</p>
+
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-0 divide-x divide-white/[0.05]">
+                      {/* Pool share */}
+                      <div className="px-2.5 py-2">
+                        <p className="text-[8px] uppercase tracking-[0.14em] text-slate-500 mb-0.5">Pool share</p>
+                        <p className="text-[13px] font-bold text-cyan-300">{shareRatio.toFixed(1)}%</p>
                       </div>
-                      <div className="rounded-[10px] border border-cyan-400/10 bg-slate-950/50 px-2 py-1.5">
-                        <p className="text-[8px] uppercase tracking-[0.14em] text-slate-500 mb-0.5">My reward</p>
-                        <p className="text-[10px] font-semibold text-amber-300 leading-tight mt-0.5">
+                      {/* My SP */}
+                      <div className="px-2.5 py-2">
+                        <p className="text-[8px] uppercase tracking-[0.14em] text-slate-500 mb-0.5">My SP</p>
+                        <p className="text-[13px] font-bold text-violet-300">{formatSP(playerSP)}</p>
+                      </div>
+                      {/* Reward / 15min */}
+                      <div className="px-2.5 py-2">
+                        <p className="text-[8px] uppercase tracking-[0.14em] text-slate-500 mb-0.5">Per cycle</p>
+                        <p className="text-[10px] font-bold text-amber-300 leading-tight">
                           {formatCycleAmount(reward, pool.crypto)}
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Participants count + SP progress bar */}
+                    <div className="px-3 pb-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[8px] uppercase tracking-[0.14em] text-slate-500">
+                          {pool.participants_count} {pool.participants_count === 1 ? 'miner' : 'miners'} in pool
+                        </span>
+                      </div>
+                      <div className="h-[3px] w-full rounded-full bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-violet-500 transition-all"
+                          style={{ width: `${Math.min(100, shareRatio)}%` }}
+                        />
                       </div>
                     </div>
                   </div>
@@ -242,8 +278,11 @@ export function BenchmarkPanel({ benchmark: _benchmark, performanceScore: _perfo
           <div className="mt-3 space-y-1.5">
             <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-2">All pools</p>
             {sortedPools.map(pool => {
-              const pct = allocation ? getPctForCrypto(allocation, pool.crypto) : 0
+              const pct      = allocation ? getPctForCrypto(allocation, pool.crypto) : 0
               const isActive = pct > 0
+              const playerSP = isActive ? displaySP * pct / 100 : 0
+              const displayValue = isActive ? playerSP : pool.total_tflops
+              const taskInfo = POOL_TASKS[pool.crypto]
               return (
                 <div
                   key={pool.crypto}
@@ -257,15 +296,18 @@ export function BenchmarkPanel({ benchmark: _benchmark, performanceScore: _perfo
                     <span className={`text-sm font-bold ${CRYPTO_COLORS[pool.crypto]}`}>
                       {CRYPTO_ICONS[pool.crypto]}
                     </span>
-                    <span className={`text-[13px] font-semibold ${isActive ? 'text-amber-200' : 'text-slate-300'}`}>
-                      {pool.crypto}
-                    </span>
+                    <div>
+                      <span className={`text-[12px] font-semibold ${isActive ? 'text-amber-200' : 'text-slate-300'}`}>
+                        {pool.crypto}
+                      </span>
+                      <p className="text-[9px] text-slate-500 leading-none mt-0.5">{taskInfo?.task}</p>
+                    </div>
                   </div>
                   <div className="flex flex-col items-end gap-0.5">
-                    <span className={`text-[13px] font-mono ${isActive ? 'text-amber-400/70' : 'text-slate-500'}`}>
-                      {formatTflops(isActive ? displayTflops * getPctForCrypto(allocation!, pool.crypto) / 100 : pool.total_tflops)} TF
+                    <span className={`text-[12px] font-mono ${isActive ? 'text-violet-300' : 'text-slate-500'}`}>
+                      {formatSP(displayValue)} SP
                     </span>
-                    <span className={`text-[13px] font-mono ${isActive ? 'text-amber-300' : 'text-slate-600'}`}>
+                    <span className={`text-[11px] font-mono ${isActive ? 'text-amber-300' : 'text-slate-600'}`}>
                       {formatCycleAmount(pool.cycle_amount, pool.crypto)}
                     </span>
                   </div>
@@ -281,14 +323,14 @@ export function BenchmarkPanel({ benchmark: _benchmark, performanceScore: _perfo
               <p className="text-[20px] font-semibold text-white">{totalPlayers}</p>
             </div>
             <div className="rounded-[14px] border border-white/5 bg-slate-950/50 px-3 py-2.5">
-              <p className="text-[9px] uppercase tracking-[0.14em] text-slate-500 mb-1">Total TFlops</p>
-              <p className="text-[20px] font-semibold text-white">{displayTflops.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
+              <p className="text-[9px] uppercase tracking-[0.14em] text-slate-500 mb-1">Total SP</p>
+              <p className="text-[20px] font-semibold text-violet-300">
+                {formatSP(displaySP)}
+              </p>
             </div>
           </div>
         </>
       )}
-
-
     </aside>
   )
 }

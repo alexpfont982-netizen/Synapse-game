@@ -89,7 +89,6 @@ const MAX_COMPONENTS_PER_ROOM = 80
 const MAX_ROOM_POWER_W = 7200
 const MAX_BATTERY_WH = 151200
 
-// ── Scale hook — escala todo el contenido del garage proporcionalmente ──
 function useGarageScale(ref: React.RefObject<HTMLDivElement | null>) {
   const [scale, setScale] = useState(1)
   useEffect(() => {
@@ -148,11 +147,22 @@ function RackZoomGrid({ rackId, userId }: { rackId: number; userId: string }) {
   const installedPieces = Object.values(slotMap).filter((p): p is MockHardwarePiece => p != null)
   const installedItemIds = installedPieces.map(p => p.item_id)
   const rackBuffs = useRackBuffs(installedItemIds)
-  const rackStatusData = computeRackStatus(installedPieces)
+
+  // ── Paso 1: SP Base sin buffs → para rackStats ───────────────
+  const rackStatusBase = computeRackStatus(installedPieces)
+
   const rackStats: RackRuntimeStats = useMemo(() => ({
-    temperature: rackStatusData.temperature, power_load: rackStatusData.powerLoad, stability: rackStatusData.stability,
-  }), [rackStatusData.temperature, rackStatusData.powerLoad, rackStatusData.stability])
+    temperature: rackStatusBase.temperature,
+    power_load:  rackStatusBase.powerLoad,
+    stability:   rackStatusBase.stability,
+  }), [rackStatusBase.temperature, rackStatusBase.powerLoad, rackStatusBase.stability])
+
+  // ── Paso 2: efectos condicionales usando rackStats base ──────
   const { activeBoosts: conditionalBoosts, activePenalties: conditionalPenalties, potentialPenalties } = useConditionalEffects(installedItemIds, rackStats)
+
+  // ── Paso 3: SP Efectivo con buffs/penalties ──────────────────
+  const rackStatusData = computeRackStatus(installedPieces, conditionalBoosts, conditionalPenalties)
+
   const rackTFlops = useRackTFlops(installedPieces, rackBuffs.buffs)
 
   const r = `rack${rackId}`
@@ -183,7 +193,11 @@ function RackZoomGrid({ rackId, userId }: { rackId: number; userId: string }) {
   return (
     <div className="flex gap-4">
       <div className="w-44 shrink-0 self-start sticky top-0 flex flex-col gap-2">
-        <RackStatusPanel {...rackStatusData} aiOutput={rackTFlops?.effectiveAiOutput ?? rackStatusData.aiOutput} variant="compact" />
+        <RackStatusPanel
+          {...rackStatusData}
+          aiOutput={rackTFlops?.effectiveAiOutput ?? rackStatusData.aiOutput}
+          variant="compact"
+        />
         {rackTFlops && (
           <div className="rounded-md border border-cyan-500/20 bg-cyan-950/20 px-2.5 py-2">
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-400/80 mb-1.5">TFLOPS Breakdown</div>
@@ -288,9 +302,16 @@ function RackZoomGrid({ rackId, userId }: { rackId: number; userId: string }) {
 }
 
 interface RoomGaugesData {
-  totalTFlops: number; totalPower: number; maxPower: number
-  avgTemperature: number; avgStability: number; installedComponents: number
-  maxComponents: number; batteryWh: number; maxBatteryWh: number
+  totalTFlops: number
+  totalSP: number
+  totalPower: number
+  maxPower: number
+  avgTemperature: number
+  avgStability: number
+  installedComponents: number
+  maxComponents: number
+  batteryWh: number
+  maxBatteryWh: number
 }
 
 function useRoomTFlops(hardwarePieces: MockHardwarePiece[]): number {
@@ -309,32 +330,82 @@ function useRoomTFlops(hardwarePieces: MockHardwarePiece[]): number {
   return useMemo(() => (tflops1?.effectiveAiOutput ?? 0) + (tflops2?.effectiveAiOutput ?? 0) + (tflops3?.effectiveAiOutput ?? 0) + (tflops4?.effectiveAiOutput ?? 0), [tflops1, tflops2, tflops3, tflops4])
 }
 
+// ── SP Efectivo por sala — incluye buffs/penalties activos ──────
+// Necesita hooks separados porque useConditionalEffects no puede
+// llamarse dentro de useMemo
+function useRoomEffectiveSP(hardwarePieces: MockHardwarePiece[]): number {
+  const rack1Pieces = useMemo(() => hardwarePieces.filter(p => p.slot_id?.startsWith('rack1-')), [hardwarePieces])
+  const rack2Pieces = useMemo(() => hardwarePieces.filter(p => p.slot_id?.startsWith('rack2-')), [hardwarePieces])
+  const rack3Pieces = useMemo(() => hardwarePieces.filter(p => p.slot_id?.startsWith('rack3-')), [hardwarePieces])
+  const rack4Pieces = useMemo(() => hardwarePieces.filter(p => p.slot_id?.startsWith('rack4-')), [hardwarePieces])
+
+  const rack1Ids = useMemo(() => rack1Pieces.map(p => p.item_id), [rack1Pieces])
+  const rack2Ids = useMemo(() => rack2Pieces.map(p => p.item_id), [rack2Pieces])
+  const rack3Ids = useMemo(() => rack3Pieces.map(p => p.item_id), [rack3Pieces])
+  const rack4Ids = useMemo(() => rack4Pieces.map(p => p.item_id), [rack4Pieces])
+
+  // Stats base de cada rack para evaluar condiciones
+  const base1 = useMemo(() => computeRackStatus(rack1Pieces), [rack1Pieces])
+  const base2 = useMemo(() => computeRackStatus(rack2Pieces), [rack2Pieces])
+  const base3 = useMemo(() => computeRackStatus(rack3Pieces), [rack3Pieces])
+  const base4 = useMemo(() => computeRackStatus(rack4Pieces), [rack4Pieces])
+
+  const stats1: RackRuntimeStats = useMemo(() => ({ temperature: base1.temperature, power_load: base1.powerLoad, stability: base1.stability }), [base1.temperature, base1.powerLoad, base1.stability])
+  const stats2: RackRuntimeStats = useMemo(() => ({ temperature: base2.temperature, power_load: base2.powerLoad, stability: base2.stability }), [base2.temperature, base2.powerLoad, base2.stability])
+  const stats3: RackRuntimeStats = useMemo(() => ({ temperature: base3.temperature, power_load: base3.powerLoad, stability: base3.stability }), [base3.temperature, base3.powerLoad, base3.stability])
+  const stats4: RackRuntimeStats = useMemo(() => ({ temperature: base4.temperature, power_load: base4.powerLoad, stability: base4.stability }), [base4.temperature, base4.powerLoad, base4.stability])
+
+  const { activeBoosts: boosts1, activePenalties: penalties1 } = useConditionalEffects(rack1Ids, stats1)
+  const { activeBoosts: boosts2, activePenalties: penalties2 } = useConditionalEffects(rack2Ids, stats2)
+  const { activeBoosts: boosts3, activePenalties: penalties3 } = useConditionalEffects(rack3Ids, stats3)
+  const { activeBoosts: boosts4, activePenalties: penalties4 } = useConditionalEffects(rack4Ids, stats4)
+
+  const sp1 = useMemo(() => computeRackStatus(rack1Pieces, boosts1, penalties1).synapsepowerEffective ?? 0, [rack1Pieces, boosts1, penalties1])
+  const sp2 = useMemo(() => computeRackStatus(rack2Pieces, boosts2, penalties2).synapsepowerEffective ?? 0, [rack2Pieces, boosts2, penalties2])
+  const sp3 = useMemo(() => computeRackStatus(rack3Pieces, boosts3, penalties3).synapsepowerEffective ?? 0, [rack3Pieces, boosts3, penalties3])
+  const sp4 = useMemo(() => computeRackStatus(rack4Pieces, boosts4, penalties4).synapsepowerEffective ?? 0, [rack4Pieces, boosts4, penalties4])
+
+  return useMemo(() => sp1 + sp2 + sp3 + sp4, [sp1, sp2, sp3, sp4])
+}
+
 function useRoomGaugesData(hardwarePieces: MockHardwarePiece[], energy: PlayerEnergy | null, roomTFlops?: number): RoomGaugesData {
   return useMemo(() => {
-    let totalTFlops = 0, totalPower = 0, tempSum = 0, stabilitySum = 0, activeRackCount = 0, installedComponents = 0
+    let totalTFlops = 0, totalSP = 0, totalPower = 0
+    let tempSum = 0, stabilitySum = 0, activeRackCount = 0, installedComponents = 0
+
     ;[1, 2, 3, 4].forEach((rackId) => {
       const rackPieces = hardwarePieces.filter((p) => p.slot_id?.startsWith(`rack${rackId}-`))
       if (rackPieces.length === 0) return
       const status = computeRackStatus(rackPieces)
-      installedComponents += status.installedCount; totalPower += status.powerLoad
-      totalTFlops += status.aiOutput / 10; tempSum += status.temperature
-      stabilitySum += status.stability; activeRackCount += 1
+      installedComponents += status.installedCount
+      totalPower         += status.powerLoad
+      totalTFlops        += status.aiOutput / 10
+      totalSP            += status.synapsepower ?? 0
+      tempSum            += status.temperature
+      stabilitySum       += status.stability
+      activeRackCount    += 1
     })
+
     return {
-      totalTFlops: roomTFlops ?? totalTFlops, totalPower, maxPower: MAX_ROOM_POWER_W,
+      totalTFlops: roomTFlops ?? totalTFlops,
+      totalSP,
+      totalPower,
+      maxPower: MAX_ROOM_POWER_W,
       avgTemperature: activeRackCount > 0 ? tempSum / activeRackCount : 25,
-      avgStability: activeRackCount > 0 ? stabilitySum / activeRackCount : 100,
-      installedComponents, maxComponents: MAX_COMPONENTS_PER_ROOM,
-      batteryWh: energy?.currentWh ?? MAX_BATTERY_WH, maxBatteryWh: energy?.maxWh ?? MAX_BATTERY_WH,
+      avgStability:   activeRackCount > 0 ? stabilitySum / activeRackCount : 100,
+      installedComponents,
+      maxComponents: MAX_COMPONENTS_PER_ROOM,
+      batteryWh:    energy?.currentWh  ?? MAX_BATTERY_WH,
+      maxBatteryWh: energy?.maxWh      ?? MAX_BATTERY_WH,
     }
   }, [hardwarePieces, energy, roomTFlops])
 }
 
 export default function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const [activeSection, setActiveSection] = useState(() => resolveSectionFromPath(window.location.pathname))
-  const [zoomedRackId, setZoomedRackId] = useState<number | null>(null)
- const garageRef = useRef<HTMLDivElement | null>(null)
-  const scale = useGarageScale(garageRef)
+  const [zoomedRackId, setZoomedRackId]   = useState<number | null>(null)
+  const garageRef = useRef<HTMLDivElement | null>(null)
+  const scale     = useGarageScale(garageRef)
 
   const userId = session.id
   const { wallet, loading: walletLoading } = useUserWallet(userId)
@@ -347,7 +418,7 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
       if (isLegalRoute(window.location.pathname)) return
       const nextSection = resolveSectionFromPath(window.location.pathname)
       setActiveSection((current) => current === nextSection ? current : nextSection)
-      const canonicalPath = getCanonicalPath(nextSection)
+      const canonicalPath  = getCanonicalPath(nextSection)
       const normalizedPath = normalizePathname(window.location.pathname)
       if (canonicalPath !== normalizedPath && nextSection !== 'games' && nextSection !== 'neural-link' && nextSection !== 'packet-storm' && nextSection !== 'net-rush') {
         window.history.replaceState({}, '', canonicalPath)
@@ -360,19 +431,20 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
 
   const installedHardware = useMemo<DashboardHardwarePiece[]>(() => selectMockHardwarePieces(inventory).filter((piece) => piece.slot_id !== null), [inventory])
   const allHardwarePieces = useMemo(() => selectMockHardwarePieces(inventory), [inventory])
-  const { energy, refresh: refreshEnergy } = usePlayerEnergy(userId)
-  const roomTFlops = useRoomTFlops(allHardwarePieces)
-  const roomGaugesData = useRoomGaugesData(allHardwarePieces, energy, roomTFlops)
+  const { energy, refresh: refreshEnergy }             = usePlayerEnergy(userId)
+  const roomTFlops                                     = useRoomTFlops(allHardwarePieces)
+  const roomEffectiveSP                                = useRoomEffectiveSP(allHardwarePieces)
+  const roomGaugesData                                 = useRoomGaugesData(allHardwarePieces, energy, roomTFlops)
   const { batteries: unusedBatteries, refresh: refreshBatteries } = useUserBatteries(userId)
-  const [batteryFeedback, setBatteryFeedback] = useState<string | null>(null)
-  const { allocation, refresh: refreshAllocation } = usePoolAllocation(userId)
+  const [batteryFeedback, setBatteryFeedback]          = useState<string | null>(null)
+  const { allocation, refresh: refreshAllocation }     = usePoolAllocation(userId)
 
   const handleUseBattery = async (batteryId: string) => {
     const result = await useBattery(batteryId)
     if (!result.success) { setBatteryFeedback(result.message); return }
     await refreshEnergy(); await refreshBatteries()
     setBatteryFeedback(result.whWasted && result.whWasted > 0
-      ? `+${Math.round(result.whAdded ?? 0).toLocaleString()} Wh added (${Math.round(result.whWasted).toLocaleString()} Wh wasted, room was nearly full)`
+      ? `+${Math.round(result.whAdded ?? 0).toLocaleString()} Wh added (${Math.round(result.whWasted).toLocaleString()} Wh wasted)`
       : `+${Math.round(result.whAdded ?? 0).toLocaleString()} Wh added to energy reserve`)
     setTimeout(() => setBatteryFeedback(null), 4000)
   }
@@ -382,7 +454,7 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
     installedHardware.forEach((piece) => {
       const stats = piece.stats ?? { tflops: 0, power: 0, heat: 0 }
       power += stats.power ?? 0
-      if (piece.type === 'GPU') { tflops += stats.tflops ?? 0; heat += Math.max(0, stats.heat ?? 0); activeGpus += 1; return }
+      if (piece.type === 'GPU')     { tflops += stats.tflops ?? 0; heat += Math.max(0, stats.heat ?? 0); activeGpus += 1; return }
       if (piece.type === 'COOLING') { cooling += Math.abs(stats.heat ?? 0); return }
       heat += Math.max(0, stats.heat ?? 0)
     })
@@ -417,33 +489,30 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
         aside={
           activeSection === 'dashboard' ? (
             <div className="relative z-30 space-y-3">
-              <BenchmarkPanel benchmark={benchmarkPanel} performanceScore={Math.round(hardwareStats.tflops * 100)} userId={userId} roomTFlops={roomTFlops} />
+              <BenchmarkPanel
+                benchmark={benchmarkPanel}
+                performanceScore={Math.round(hardwareStats.tflops * 100)}
+                userId={userId}
+                roomTFlops={roomEffectiveSP}
+              />
             </div>
           ) : null
         }
       >
         <div className={`flex h-full w-full justify-center animate-in fade-in duration-300 ${isLaboratorySection ? 'items-start p-0' : 'items-center p-4'}`}>
           {activeSection === 'dashboard' && (
-          <div className="relative w-full max-w-[1960px] pb-28 xl:pb-0">
-              {/* Garage container — ref para medir el ancho real */}
+            <div className="relative w-full max-w-[1960px] pb-28 xl:pb-0">
               <div ref={garageRef} className="relative aspect-video xl:ml-8">
                 <div className="absolute inset-0 overflow-hidden rounded-xl border border-slate-800/60 bg-[#0a0f16] shadow-[0_0_40px_rgba(34,211,238,0.05)]">
                   <img src={garageLevelOneHero} alt="Garage Base" className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/15 via-transparent to-slate-950/35" />
 
-                  {/* ── Contenido escalable — todo escala junto con el garage ── */}
                   <div
                     className="absolute inset-0"
-                    style={{
-                      transformOrigin: 'top left',
-                      transform: `scale(${scale})`,
-                      width: `${100 / scale}%`,
-                      height: `${100 / scale}%`,
-                    }}
+                    style={{ transformOrigin: 'top left', transform: `scale(${scale})`, width: `${100/scale}%`, height: `${100/scale}%` }}
                   >
                     {/* Energy + Batteries */}
                     <div className="pointer-events-none absolute left-4 top-4 z-40 flex items-start gap-2">
-                      {/* Energy widget */}
                       <div className="relative overflow-hidden rounded-[18px] border border-white/8 bg-slate-950/62 px-3.5 py-3 shadow-[0_0_24px_rgba(52,211,153,0.08)] backdrop-blur-md">
                         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.02),transparent_55%)]" />
                         <div className="absolute left-3 top-3 h-8 w-px bg-emerald-300/55" />
@@ -480,7 +549,6 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
                         </div>
                       </div>
 
-                      {/* Batteries */}
                       {unusedBatteries.length > 0 && (() => {
                         const groups = new Map<number, typeof unusedBatteries>()
                         for (const b of unusedBatteries) {
@@ -516,11 +584,15 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
 
                     <GarageRoomIndicators
                       items={[
-                        { label: 'TFLOPS', value: roomGaugesData.totalTFlops.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), gauge: { value: roomGaugesData.totalTFlops, max: Math.max(roomGaugesData.totalTFlops * 1.2, 1000), color: 'cyan' } },
-                        { label: 'Power', value: `${roomGaugesData.totalPower.toLocaleString()}W / ${roomGaugesData.maxPower.toLocaleString()}W`, gauge: { value: roomGaugesData.totalPower, max: roomGaugesData.maxPower, color: 'red' } },
-                        { label: 'Stability', value: `${Math.round(roomGaugesData.avgStability)}%`, gauge: { value: roomGaugesData.avgStability, max: 100, color: 'emerald' } },
+                        {
+                          label: 'SYNAPSE POWER',
+                          value: roomEffectiveSP.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' SP',
+                          gauge: { value: roomEffectiveSP, max: Math.max(roomEffectiveSP * 1.2, 1000), color: 'cyan' }
+                        },
+                        { label: 'Power',       value: `${roomGaugesData.totalPower.toLocaleString()}W / ${roomGaugesData.maxPower.toLocaleString()}W`, gauge: { value: roomGaugesData.totalPower, max: roomGaugesData.maxPower, color: 'red' } },
+                        { label: 'Stability',   value: `${Math.round(roomGaugesData.avgStability)}%`,  gauge: { value: roomGaugesData.avgStability,  max: 100, color: 'emerald' } },
                         { label: 'Temperature', value: `${Math.round(roomGaugesData.avgTemperature)}°C`, gauge: { value: roomGaugesData.avgTemperature, max: 120, color: 'amber' } },
-                        { label: 'Components', value: `${roomGaugesData.installedComponents} / ${roomGaugesData.maxComponents}` },
+                        { label: 'Components',  value: `${roomGaugesData.installedComponents} / ${roomGaugesData.maxComponents}` },
                       ]}
                       placement="bottom"
                     />
@@ -533,8 +605,6 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
                       />
                     ))}
                   </div>
-                  {/* ── Fin contenido escalable ── */}
-
                 </div>
 
                 {zoomedRackId !== null && (
@@ -557,21 +627,21 @@ export default function DashboardPage({ session, onSignOut }: DashboardPageProps
             </div>
           )}
 
-          {activeSection === 'laboratory' && <LaboratoryEditor userId={userId} />}
-          {activeSection === 'store' && <StorePage userId={userId} />}
-          {activeSection === 'marketplace' && <MarketplacePage />}
-          {activeSection === 'wallet' && <WalletPage userId={userId} />}
-          {activeSection === 'games' && (
+          {activeSection === 'laboratory'  && <LaboratoryEditor userId={userId} />}
+          {activeSection === 'store'        && <StorePage userId={userId} />}
+          {activeSection === 'marketplace'  && <MarketplacePage />}
+          {activeSection === 'wallet'       && <WalletPage userId={userId} />}
+          {activeSection === 'games'        && (
             <GamesPage onNavigate={(path) => {
               const next = resolveSectionFromPath(path)
               startTransition(() => setActiveSection(next))
               if (window.location.pathname !== path) window.history.pushState({}, '', path)
             }} />
           )}
-          {activeSection === 'neural-link' && <NeuralLink onExit={() => { startTransition(() => setActiveSection('games')); window.history.pushState({}, '', '/games') }} />}
+          {activeSection === 'neural-link'  && <NeuralLink  onExit={() => { startTransition(() => setActiveSection('games')); window.history.pushState({}, '', '/games') }} />}
           {activeSection === 'packet-storm' && <PacketStorm onExit={() => { startTransition(() => setActiveSection('games')); window.history.pushState({}, '', '/games') }} />}
-          {activeSection === 'net-rush' && <NetRush onExit={() => { startTransition(() => setActiveSection('games')); window.history.pushState({}, '', '/games') }} />}
-          {activeSection === 'profile' && (
+          {activeSection === 'net-rush'     && <NetRush     onExit={() => { startTransition(() => setActiveSection('games')); window.history.pushState({}, '', '/games') }} />}
+          {activeSection === 'profile'      && (
             <ProfilePage userId={userId} onBack={() => { startTransition(() => setActiveSection('dashboard')); window.history.pushState({}, '', '/dashboard') }} />
           )}
         </div>
